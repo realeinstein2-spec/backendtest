@@ -43,10 +43,14 @@ public class GlobalExceptionHandler {
                 .body(buildError(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), request.getRequestURI(), null));
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiResponse.ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiResponse.ErrorResponse> handleAuthenticationException(org.springframework.security.core.AuthenticationException ex, HttpServletRequest request) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+        String message = ex instanceof org.springframework.security.authentication.BadCredentialsException 
+                ? "Phone or password is incorrect" 
+                : ex.getMessage();
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(buildError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Phone or password is incorrect", request.getRequestURI(), null));
+                .body(buildError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", message, request.getRequestURI(), null));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

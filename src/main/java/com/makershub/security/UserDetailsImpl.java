@@ -28,7 +28,7 @@ public class UserDetailsImpl implements UserDetails {
         this.password = user.getPasswordHash();
         this.fullName = user.getFullName();
         this.role = user.getRole();
-        this.active = Boolean.TRUE.equals(user.getIsActive()) && Boolean.TRUE.equals(user.getIsVerified());
+        this.active = Boolean.TRUE.equals(user.getIsActive());
         this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 
