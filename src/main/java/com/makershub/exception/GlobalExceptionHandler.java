@@ -59,6 +59,13 @@ public class GlobalExceptionHandler {
                 .body(buildError(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "You do not have permission", request.getRequestURI(), null));
     }
 
+    @ExceptionHandler(org.springframework.data.mapping.PropertyReferenceException.class)
+    public ResponseEntity<ApiResponse.ErrorResponse> handlePropertyReferenceException(org.springframework.data.mapping.PropertyReferenceException ex, HttpServletRequest request) {
+        log.warn("Property reference exception: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(buildError(HttpStatus.BAD_REQUEST, "INVALID_SORT_PROPERTY", ex.getMessage(), request.getRequestURI(), null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse.ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);
