@@ -9,12 +9,12 @@ spring:
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN:5}
 
-# Disable Swagger/OpenAPI docs in production to avoid exposing API schema publicly
+# Enable Swagger/OpenAPI docs in production for API testing
 springdoc:
   api-docs:
-    enabled: false
+    enabled: true
   swagger-ui:
-    enabled: false
+    enabled: true
 
 logging:
   level:
