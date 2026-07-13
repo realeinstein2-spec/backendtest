@@ -1,0 +1,22 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  jpa:
+    show-sql: false
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+
+# Disable Swagger/OpenAPI docs in production to avoid exposing API schema publicly
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.makershub: INFO

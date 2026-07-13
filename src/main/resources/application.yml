@@ -1,0 +1,70 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: makershub-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/makershub}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 20000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+makershub:
+  jwt:
+    # No default — startup WILL FAIL if JWT_SECRET is not set. Generate with: openssl rand -base64 64
+    secret: ${JWT_SECRET}
+    access-expiry-ms: 900000
+    refresh-expiry-ms: 2592000000
+  paystack:
+    secret-key: ${PAYSTACK_SECRET_KEY:}
+    base-url: https://api.paystack.co
+    callback-url: ${PAYSTACK_CALLBACK_URL:https://makershub.gh/payment/callback}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+  notifications:
+    firebase:
+      enabled: ${FIREBASE_ENABLED:false}
+    africastalking:
+      enabled: ${AFRICAS_TALKING_ENABLED:false}
+  platform:
+    fee-percent: ${PLATFORM_FEE_PERCENT:0.035}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+logging:
+  level:
+    root: INFO
+    com.makershub: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

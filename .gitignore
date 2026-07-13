@@ -1,0 +1,54 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+# Avoid ignoring Maven wrapper jar but we don't have it anyway
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDEs and Editors
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+.factorypath
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# JVM Crash Logs & Logs
+*.log
+hs_err_pid*
+replay_pid*
+logs/
+
+# Local Environment Variables & Credentials
+.env
+.env.local
+.env.production
+.env.development
+.env.staging
+*.jks
+*.p12
+*.pem
+*.key
+/secrets/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

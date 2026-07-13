@@ -1,0 +1,86 @@
+package com.makershub.service;
+
+import com.makershub.dto.request.ReviewRequest;
+import com.makershub.dto.response.ReviewResponse;
+import com.makershub.entity.Order;
+import com.makershub.entity.Review;
+import com.makershub.entity.User;
+import com.makershub.enums.AuditAction;
+import com.makershub.enums.OrderStatus;
+import com.makershub.exception.BusinessException;
+import com.makershub.exception.ResourceNotFoundException;
+import com.makershub.exception.UnauthorizedException;
+import com.makershub.audit.AuditLogger;
+import com.makershub.mapper.DtoMapper;
+import com.makershub.repository.OrderRepository;
+import com.makershub.repository.ReviewRepository;
+import com.makershub.repository.UserRepository;
+import com.makershub.security.UserDetailsImpl;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class ReviewService {
+
+    private final ReviewRepository reviewRepository;
+    private final OrderRepository orderRepository;
+    private final UserRepository userRepository;
+    private final DtoMapper mapper;
+    private final AuditLogger auditLogger;
+
+    @Transactional
+    public ReviewResponse.ReviewDetailResponse submitReview(ReviewRequest.CreateReviewRequest request) {
+        User reviewer = getAuthenticatedUser();
+        UUID orderId = UUID.fromString(request.getOrderId());
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", request.getOrderId()));
+        if (order.getStatus() != OrderStatus.COMPLETED && order.getStatus() != OrderStatus.REFUNDED) {
+            throw new BusinessException("Order must be completed before reviewing", HttpStatus.CONFLICT, "ORDER_NOT_COMPLETED");
+        }
+        User reviewed;
+        if (order.getSme().getId().equals(reviewer.getId())) {
+            reviewed = order.getFactory();
+        } else if (order.getFactory().getId().equals(reviewer.getId())) {
+            reviewed = order.getSme();
+        } else {
+            throw new UnauthorizedException("You are not a party to this order");
+        }
+        reviewRepository.findByOrderIdAndReviewerId(orderId, reviewer.getId()).ifPresent(r -> {
+            throw new BusinessException("Review already submitted", HttpStatus.CONFLICT, "REVIEW_EXISTS");
+        });
+        Review review = Review.builder()
+                .order(order)
+                .reviewer(reviewer)
+                .reviewed(reviewed)
+                .overallRating(request.getOverallRating())
+                .qualityRating(request.getQualityRating())
+                .timelinessRating(request.getTimelinessRating())
+                .communicationRating(request.getCommunicationRating())
+                .comment(request.getComment())
+                .build();
+        Review saved = reviewRepository.save(review);
+        updateUserRating(reviewed);
+        auditLogger.log(AuditAction.CREATE, "REVIEW", saved.getId(), null, null);
+        return mapper.toReviewResponse(saved);
+    }
+
+    @Transactional
+    protected void updateUserRating(User user) {
+        Double avg = reviewRepository.calculateAverageRatingByReviewedId(user.getId());
+        user.setRatingAvg(avg != null ? avg : 0.0);
+        user.setTotalOrders(user.getTotalOrders() + 1);
+        userRepository.save(user);
+    }
+
+    private User getAuthenticatedUser() {
+        UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return userRepository.findByIdAndDeletedAtIsNull(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", principal.getId().toString()));
+    }
+}

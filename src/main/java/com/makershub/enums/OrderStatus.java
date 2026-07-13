@@ -1,0 +1,5 @@
+package com.makershub.enums;
+
+public enum OrderStatus {
+    PAYMENT_PENDING, IN_ESCROW, IN_PRODUCTION, QUALITY_CHECK, DELIVERED, COMPLETED, DISPUTED, REFUNDED, CANCELLED
+}

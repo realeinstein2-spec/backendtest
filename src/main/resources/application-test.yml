@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:15-alpine:///makershub?TC_TMPFS=/testtmp:rw
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+makershub:
+  jwt:
+    secret: VGVzdFNlY3JldEtleVRoYXRJc0xvbmdFbm91Z2hGb3JIUzUxMlRlc3Rpbmc=
