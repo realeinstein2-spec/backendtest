@@ -8,6 +8,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.locationtech.jts.geom.Point;
 
 import java.time.Instant;
@@ -33,6 +34,7 @@ public class Factory {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_factories_user"))
     private User user;
@@ -59,8 +61,29 @@ public class Factory {
     @Column(name = "max_order_quantity")
     private Integer maxOrderQuantity;
 
+    @JsonIgnore
     @Column(name = "gps_coordinates", columnDefinition = "geometry(Point, 4326)")
     private Point gpsCoordinates;
+
+    public Double getLatitude() {
+        return gpsCoordinates != null ? gpsCoordinates.getY() : null;
+    }
+
+    public Double getLongitude() {
+        return gpsCoordinates != null ? gpsCoordinates.getX() : null;
+    }
+
+    public UUID getOwnerId() {
+        return user != null ? user.getId() : null;
+    }
+
+    public String getOwnerName() {
+        return user != null ? user.getFullName() : null;
+    }
+
+    public String getOwnerPhoneNumber() {
+        return user != null ? user.getPhoneNumber() : null;
+    }
 
     @Column(name = "address", length = 500)
     private String address;
