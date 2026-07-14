@@ -31,5 +31,6 @@ public final class AuthResponse {
         private Boolean isVerified;
         private String region;
         private String profileImageUrl;
+        private String otpCode;
     }
 }

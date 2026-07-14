@@ -9,6 +9,7 @@ import org.mapstruct.Mapping;
 public interface DtoMapper {
 
     @Mapping(target = "role", source = "role")
+    @Mapping(target = "otpCode", ignore = true)
     AuthResponse.UserSummaryResponse toUserSummary(User user);
 
     @Mapping(target = "smeId", source = "sme.id")

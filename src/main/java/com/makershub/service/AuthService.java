@@ -88,6 +88,10 @@ public class AuthService {
                 .build();
         smsService.send(otpEvent);
 
+        // Return OTP in response only if not running in production profile
+        boolean isProd = "prod".equalsIgnoreCase(System.getenv("SPRING_PROFILES_ACTIVE"));
+        String responseOtp = isProd ? null : otpCode;
+
         return AuthResponse.UserSummaryResponse.builder()
                 .id(saved.getId())
                 .phoneNumber(saved.getPhoneNumber())
@@ -95,6 +99,7 @@ public class AuthService {
                 .role(saved.getRole())
                 .isVerified(saved.getIsVerified())
                 .region(saved.getRegion())
+                .otpCode(responseOtp)
                 .build();
     }
 
