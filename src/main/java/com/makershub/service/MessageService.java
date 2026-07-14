@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
@@ -36,6 +37,7 @@ public class MessageService {
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public MessageResponse.MessageDetailResponse sendMessage(MessageRequest.CreateMessageRequest request) {
@@ -64,7 +66,9 @@ public class MessageService {
                 .body("You have a new message on order " + orderId)
                 .data(Map.of("orderId", orderId.toString(), "messageId", saved.getId().toString()))
                 .build());
-        return mapper.toMessageResponse(saved);
+        MessageResponse.MessageDetailResponse response = mapper.toMessageResponse(saved);
+        messagingTemplate.convertAndSend("/topic/orders/" + orderId, response);
+        return response;
     }
 
     @Transactional(readOnly = true)

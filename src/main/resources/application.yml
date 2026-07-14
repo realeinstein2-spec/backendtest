@@ -53,6 +53,8 @@ makershub:
       enabled: ${FIREBASE_ENABLED:false}
     africastalking:
       enabled: ${AFRICAS_TALKING_ENABLED:false}
+      username: ${AFRICAS_TALKING_USERNAME:}
+      api-key: ${AFRICAS_TALKING_API_KEY:}
   platform:
     fee-percent: ${PLATFORM_FEE_PERCENT:0.035}
   cors:
