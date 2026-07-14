@@ -19,6 +19,7 @@ public final class AuthResponse {
         private Instant accessTokenExpiry;
         private Instant refreshTokenExpiry;
         private String tokenType;
+        private String otpCode;
     }
 
     @Data

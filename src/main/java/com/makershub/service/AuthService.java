@@ -103,12 +103,40 @@ public class AuthService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse.TokenResponse login(AuthRequest.LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getPhoneNumber(), request.getPassword()));
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        return buildTokenResponse(userDetails);
+
+        // Generate and save OTP on login
+        String otpCode = String.format("%06d", new java.util.Random().nextInt(1000000));
+        
+        // Clean up old verification if exists
+        otpVerificationRepository.deleteByPhoneNumber(userDetails.getPhoneNumber());
+        
+        OtpVerification verification = OtpVerification.builder()
+                .phoneNumber(userDetails.getPhoneNumber())
+                .otpCode(otpCode)
+                .expiryTime(java.time.Instant.now().plusSeconds(300)) // 5 minutes
+                .build();
+        otpVerificationRepository.save(verification);
+
+        // Always log OTP to console
+        log.info("==========================================================");
+        log.info("[LOGIN OTP GENERATED] Phone: {}, Code: {}", userDetails.getPhoneNumber(), otpCode);
+        log.info("==========================================================");
+
+        // Dispatch SMS
+        NotificationEvent otpEvent = NotificationEvent.builder()
+                .recipientId(userDetails.getId())
+                .phoneNumber(userDetails.getPhoneNumber())
+                .body("Your MakersHub login verification code is " + otpCode + ". It expires in 5 minutes.")
+                .title("MakersHub Login Verification")
+                .build();
+        smsService.send(otpEvent);
+
+        return buildTokenResponse(userDetails, otpCode);
     }
 
     @Transactional(readOnly = true)
@@ -119,16 +147,20 @@ public class AuthService {
         UUID userId = jwtUtil.extractUserId(request.getRefreshToken());
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId.toString()));
-        return buildTokenResponse(new UserDetailsImpl(user));
+        return buildTokenResponse(new UserDetailsImpl(user), null);
     }
 
-    private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails) {
+    private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails, String otpCode) {
+        boolean isProd = "prod".equalsIgnoreCase(System.getenv("SPRING_PROFILES_ACTIVE"));
+        String responseOtp = isProd ? null : otpCode;
+
         return AuthResponse.TokenResponse.builder()
                 .accessToken(jwtUtil.generateAccessToken(userDetails))
                 .refreshToken(jwtUtil.generateRefreshToken(userDetails))
                 .accessTokenExpiry(jwtUtil.getAccessExpiry())
                 .refreshTokenExpiry(jwtUtil.getRefreshExpiry())
                 .tokenType("Bearer")
+                .otpCode(responseOtp)
                 .build();
     }
 
