@@ -18,6 +18,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.makershub.entity.OtpVerification;
+import com.makershub.repository.OtpVerificationRepository;
+import com.makershub.notification.NotificationEvent;
+import com.makershub.notification.SmsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +37,8 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
     private final AuditLogger auditLogger;
+    private final OtpVerificationRepository otpVerificationRepository;
+    private final SmsService smsService;
 
     @Transactional
     public AuthResponse.UserSummaryResponse register(AuthRequest.RegisterRequest request) {
@@ -54,6 +60,34 @@ public class AuthService {
                 .build();
         User saved = userRepository.save(user);
         auditLogger.log(AuditAction.CREATE, "USER", saved.getId(), null, null);
+
+        // Generate and save OTP
+        String otpCode = String.format("%06d", new java.util.Random().nextInt(1000000));
+        
+        // Clean up old verification if exists
+        otpVerificationRepository.deleteByPhoneNumber(saved.getPhoneNumber());
+        
+        OtpVerification verification = OtpVerification.builder()
+                .phoneNumber(saved.getPhoneNumber())
+                .otpCode(otpCode)
+                .expiryTime(java.time.Instant.now().plusSeconds(300)) // 5 minutes
+                .build();
+        otpVerificationRepository.save(verification);
+
+        // Always log OTP to console for developer easy retrieval
+        log.info("==========================================================");
+        log.info("[OTP GENERATED] Phone: {}, Code: {}", saved.getPhoneNumber(), otpCode);
+        log.info("==========================================================");
+
+        // Dispatch SMS
+        NotificationEvent otpEvent = NotificationEvent.builder()
+                .recipientId(saved.getId())
+                .phoneNumber(saved.getPhoneNumber())
+                .body("Your MakersHub verification code is " + otpCode + ". It expires in 5 minutes.")
+                .title("MakersHub Verification")
+                .build();
+        smsService.send(otpEvent);
+
         return AuthResponse.UserSummaryResponse.builder()
                 .id(saved.getId())
                 .phoneNumber(saved.getPhoneNumber())
@@ -91,5 +125,29 @@ public class AuthService {
                 .refreshTokenExpiry(jwtUtil.getRefreshExpiry())
                 .tokenType("Bearer")
                 .build();
+    }
+
+    @Transactional
+    public void verifyOtp(AuthRequest.OtpRequest request) {
+        OtpVerification verification = otpVerificationRepository.findByPhoneNumber(request.getPhoneNumber())
+                .orElseThrow(() -> new BusinessException("No OTP found for this phone number", HttpStatus.BAD_REQUEST, "OTP_NOT_FOUND"));
+
+        if (verification.getExpiryTime().isBefore(java.time.Instant.now())) {
+            otpVerificationRepository.delete(verification);
+            throw new BusinessException("OTP has expired", HttpStatus.BAD_REQUEST, "OTP_EXPIRED");
+        }
+
+        if (!verification.getOtpCode().equals(request.getOtp())) {
+            throw new BusinessException("Invalid OTP code", HttpStatus.BAD_REQUEST, "INVALID_OTP");
+        }
+
+        User user = userRepository.findByPhoneNumberAndDeletedAtIsNull(request.getPhoneNumber())
+                .orElseThrow(() -> new ResourceNotFoundException("User", request.getPhoneNumber()));
+        user.setIsVerified(true);
+        userRepository.save(user);
+
+        otpVerificationRepository.delete(verification);
+        auditLogger.log(AuditAction.VERIFY, "USER", user.getId(), "UNVERIFIED", "VERIFIED");
+        log.info("User {} verified successfully with OTP", request.getPhoneNumber());
     }
 }

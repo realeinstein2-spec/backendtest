@@ -36,4 +36,11 @@ public class AuthController {
     public ResponseEntity<AuthResponse.TokenResponse> refresh(@Valid @RequestBody AuthRequest.RefreshRequest request) {
         return ResponseEntity.ok(authService.refresh(request));
     }
+
+    @PostMapping("/verify")
+    @Operation(summary = "Verify account using OTP code")
+    public ResponseEntity<com.makershub.dto.response.ApiResponse.MessageResponse> verify(@Valid @RequestBody AuthRequest.OtpRequest request) {
+        authService.verifyOtp(request);
+        return ResponseEntity.ok(new com.makershub.dto.response.ApiResponse.MessageResponse("Account verified successfully"));
+    }
 }

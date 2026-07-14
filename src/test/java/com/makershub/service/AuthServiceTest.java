@@ -37,6 +37,10 @@ class AuthServiceTest {
     private JwtUtil jwtUtil;
     @Mock
     private AuditLogger auditLogger;
+    @Mock
+    private com.makershub.repository.OtpVerificationRepository otpVerificationRepository;
+    @Mock
+    private com.makershub.notification.SmsService smsService;
 
     @InjectMocks
     private AuthService authService;

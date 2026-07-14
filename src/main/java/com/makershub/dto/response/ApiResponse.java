@@ -39,4 +39,12 @@ public final class ApiResponse {
         private long totalElements;
         private int totalPages;
     }
+
+    @Data
+    @Builder
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class MessageResponse {
+        private String message;
+    }
 }
