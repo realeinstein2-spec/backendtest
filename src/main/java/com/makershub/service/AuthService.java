@@ -64,14 +64,11 @@ public class AuthService {
         // Generate and save OTP
         String otpCode = String.format("%06d", new java.util.Random().nextInt(1000000));
         
-        // Clean up old verification if exists
-        otpVerificationRepository.deleteByPhoneNumber(saved.getPhoneNumber());
-        
-        OtpVerification verification = OtpVerification.builder()
-                .phoneNumber(saved.getPhoneNumber())
-                .otpCode(otpCode)
-                .expiryTime(java.time.Instant.now().plusSeconds(300)) // 5 minutes
-                .build();
+        // Save or update verification OTP
+        OtpVerification verification = otpVerificationRepository.findByPhoneNumber(saved.getPhoneNumber())
+                .orElseGet(() -> OtpVerification.builder().phoneNumber(saved.getPhoneNumber()).build());
+        verification.setOtpCode(otpCode);
+        verification.setExpiryTime(java.time.Instant.now().plusSeconds(300)); // 5 minutes
         otpVerificationRepository.save(verification);
 
         // Always log OTP to console for developer easy retrieval
@@ -112,14 +109,11 @@ public class AuthService {
         // Generate and save OTP on login
         String otpCode = String.format("%06d", new java.util.Random().nextInt(1000000));
         
-        // Clean up old verification if exists
-        otpVerificationRepository.deleteByPhoneNumber(userDetails.getPhoneNumber());
-        
-        OtpVerification verification = OtpVerification.builder()
-                .phoneNumber(userDetails.getPhoneNumber())
-                .otpCode(otpCode)
-                .expiryTime(java.time.Instant.now().plusSeconds(300)) // 5 minutes
-                .build();
+        // Save or update verification OTP
+        OtpVerification verification = otpVerificationRepository.findByPhoneNumber(userDetails.getPhoneNumber())
+                .orElseGet(() -> OtpVerification.builder().phoneNumber(userDetails.getPhoneNumber()).build());
+        verification.setOtpCode(otpCode);
+        verification.setExpiryTime(java.time.Instant.now().plusSeconds(300)); // 5 minutes
         otpVerificationRepository.save(verification);
 
         // Always log OTP to console
