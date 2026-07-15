@@ -1,5 +1,8 @@
 package com.makershub.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.makershub.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +18,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -37,24 +41,41 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
 
-    // Comma-separated list of allowed origins, e.g. https://makershub.gh,https://app.makershub.gh
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
     @Value("#{'${makershub.cors.allowed-origins}'.split(',')}")
     private List<String> allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        boolean isProd = "prod".equalsIgnoreCase(activeProfile);
+
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/api/v1/public/**", "/webhooks/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/actuator/health", "/error", "/ws/**").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/v1/factories/*/verify").hasRole("ADMIN")
-                .anyRequest().authenticated()
+            // Security headers: HSTS, nosniff, deny framing
+            .headers(headers -> headers
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .includeSubDomains(true)
+                    .maxAgeInSeconds(31536000))
+                // X-Content-Type-Options: nosniff (Spring Security default - keep enabled)
+                .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
             )
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers("/api/v1/auth/**", "/api/v1/public/**", "/webhooks/**").permitAll();
+                // H-15: Only expose Swagger in non-prod environments
+                if (!isProd) {
+                    auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
+                }
+                auth.requestMatchers("/actuator/health", "/error", "/ws/**").permitAll();
+                auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
+                auth.requestMatchers("/api/v1/factories/*/verify").hasRole("ADMIN");
+                auth.anyRequest().authenticated();
+            })
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -68,6 +89,7 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         config.setExposedHeaders(List.of("X-Total-Count"));
         config.setAllowCredentials(true);
+        config.setMaxAge(3600L); // M-22: Cache preflight responses for 1 hour
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
@@ -101,5 +123,16 @@ public class SecurityConfig {
         factory.setConnectTimeout(5_000);  // 5 seconds
         factory.setReadTimeout(15_000);    // 15 seconds
         return new RestTemplate(factory);
+    }
+
+    /**
+     * Singleton ObjectMapper bean with JavaTimeModule registered.
+     * Injected into PaymentService and any other service needing JSON parsing.
+     */
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 }

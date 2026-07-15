@@ -27,7 +27,7 @@
         <cloudinary.version>1.39.0</cloudinary.version>
         <testcontainers.version>1.20.2</testcontainers.version>
         <hibernate.spatial.version>6.5.2.Final</hibernate.spatial.version>
-        <skipTests>true</skipTests>
+        <skipTests>false</skipTests>
     </properties>
 
     <dependencies>

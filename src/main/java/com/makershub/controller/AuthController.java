@@ -26,8 +26,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Authenticate and receive JWT tokens")
-    public ResponseEntity<AuthResponse.TokenResponse> login(@Valid @RequestBody AuthRequest.LoginRequest request) {
+    @Operation(summary = "Authenticate with credentials; issues OTP for MFA verification")
+    public ResponseEntity<AuthResponse.PendingAuthResponse> login(@Valid @RequestBody AuthRequest.LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
@@ -38,9 +38,8 @@ public class AuthController {
     }
 
     @PostMapping("/verify")
-    @Operation(summary = "Verify account using OTP code")
-    public ResponseEntity<com.makershub.dto.response.ApiResponse.MessageResponse> verify(@Valid @RequestBody AuthRequest.OtpRequest request) {
-        authService.verifyOtp(request);
-        return ResponseEntity.ok(new com.makershub.dto.response.ApiResponse.MessageResponse("Account verified successfully"));
+    @Operation(summary = "Verify OTP and receive JWT tokens")
+    public ResponseEntity<AuthResponse.TokenResponse> verify(@Valid @RequestBody AuthRequest.OtpRequest request) {
+        return ResponseEntity.ok(authService.verifyOtp(request));
     }
 }

@@ -15,6 +15,8 @@ public interface EscrowTransactionRepository extends JpaRepository<EscrowTransac
 
     Optional<EscrowTransaction> findByOrderId(UUID orderId);
 
+    Optional<EscrowTransaction> findTopByOrderIdOrderByCreatedAtDesc(UUID orderId);
+
     List<EscrowTransaction> findByEscrowStatusAndRetryCountLessThan(EscrowStatus status, Integer retryCount);
 
     long countByEscrowStatus(EscrowStatus status);

@@ -46,4 +46,10 @@ public class AdminController {
         adminService.suspendUser(id, reason);
         return ResponseEntity.ok(ApiResponse.ErrorResponse.builder().message("User suspended").build());
     }
+
+    @PutMapping("/users/{id}/unsuspend")
+    public ResponseEntity<?> unsuspendUser(@PathVariable UUID id) {
+        adminService.unsuspendUser(id);
+        return ResponseEntity.ok(ApiResponse.ErrorResponse.builder().message("User unsuspended").build());
+    }
 }

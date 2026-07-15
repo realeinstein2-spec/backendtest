@@ -14,6 +14,7 @@ import com.makershub.mapper.DtoMapper;
 import com.makershub.notification.NotificationEvent;
 import com.makershub.notification.NotificationService;
 import com.makershub.repository.DisputeRepository;
+import com.makershub.repository.EscrowTransactionRepository;
 import com.makershub.repository.OrderRepository;
 import com.makershub.repository.UserRepository;
 import com.makershub.security.UserDetailsImpl;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -37,6 +39,7 @@ public class DisputeService {
     private final DisputeRepository disputeRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final EscrowTransactionRepository escrowRepository;
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
@@ -74,14 +77,34 @@ public class DisputeService {
         return mapper.toDisputeResponse(saved);
     }
 
+    // H-11: Only admins may list all disputes
     @Transactional(readOnly = true)
     public Page<DisputeResponse.DisputeDetailResponse> listDisputes(Pageable pageable) {
+        User user = getAuthenticatedUser();
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only admins can list all disputes");
+        }
         return disputeRepository.findByStatusInOrderByCreatedAtAsc(List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW), pageable)
                 .map(mapper::toDisputeResponse);
     }
 
     @Transactional
     public DisputeResponse.DisputeDetailResponse resolveDispute(UUID disputeId, DisputeRequest.ResolveDisputeRequest request) {
+        // C-3: Only admins may resolve disputes
+        User admin = getAuthenticatedUser();
+        if (admin.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only admins can resolve disputes");
+        }
+
+        // M-17: Resolution must be a terminal status
+        Set<DisputeStatus> terminalStatuses = Set.of(
+                DisputeStatus.RESOLVED_BUYER, DisputeStatus.RESOLVED_SELLER,
+                DisputeStatus.RESOLVED_SPLIT, DisputeStatus.CLOSED);
+        if (!terminalStatuses.contains(request.getResolution())) {
+            throw new BusinessException("Resolution must be a terminal status",
+                    HttpStatus.BAD_REQUEST, "INVALID_RESOLUTION_STATUS");
+        }
+
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dispute", disputeId.toString()));
         dispute.setStatus(request.getResolution());
@@ -92,6 +115,21 @@ public class DisputeService {
         Order order = dispute.getOrder();
         order.setStatus(request.getResolution() == DisputeStatus.RESOLVED_BUYER ? OrderStatus.REFUNDED : OrderStatus.COMPLETED);
         orderRepository.save(order);
+
+        // C-10: Release or refund escrow based on dispute resolution
+        escrowRepository.findByOrderId(order.getId()).ifPresent(escrow -> {
+            if (request.getResolution() == DisputeStatus.RESOLVED_BUYER) {
+                escrow.setEscrowStatus(EscrowStatus.REFUNDED);
+                escrow.setRefundedAt(java.time.Instant.now());
+            } else {
+                escrow.setEscrowStatus(EscrowStatus.RELEASED);
+                escrow.setReleasedAt(java.time.Instant.now());
+            }
+            escrowRepository.save(escrow);
+            auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
+                    EscrowStatus.HELD.name(), escrow.getEscrowStatus().name());
+        });
+
         auditLogger.log(AuditAction.DISPUTE_RESOLVE, "DISPUTE", saved.getId(), DisputeStatus.OPEN.name(), saved.getStatus().name());
         notify(saved, NotificationType.DISPUTE_RESOLVED, "Dispute resolved", "Your dispute has been resolved with status " + saved.getStatus());
         return mapper.toDisputeResponse(saved);

@@ -41,6 +41,8 @@ class AuthServiceTest {
     private com.makershub.repository.OtpVerificationRepository otpVerificationRepository;
     @Mock
     private com.makershub.notification.SmsService smsService;
+    @Mock
+    private org.springframework.core.env.Environment environment;
 
     @InjectMocks
     private AuthService authService;
@@ -56,6 +58,7 @@ class AuthServiceTest {
         when(userRepository.existsByPhoneNumber(request.getPhoneNumber())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"test"});
 
         AuthResponse.UserSummaryResponse response = authService.register(request);
 

@@ -6,6 +6,7 @@ import com.makershub.entity.Message;
 import com.makershub.entity.Order;
 import com.makershub.entity.User;
 import com.makershub.enums.AuditAction;
+import com.makershub.exception.BusinessException;
 import com.makershub.exception.ResourceNotFoundException;
 import com.makershub.exception.UnauthorizedException;
 import com.makershub.audit.AuditLogger;
@@ -19,6 +20,7 @@ import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -48,6 +50,11 @@ public class MessageService {
         if (!order.getSme().getId().equals(sender.getId()) && !order.getFactory().getId().equals(sender.getId())) {
             throw new UnauthorizedException("You cannot message on this order");
         }
+        // Validate message is not blank before persisting
+        if (request.getContent() == null || request.getContent().isBlank()) {
+            throw new BusinessException("Message content cannot be empty",
+                    HttpStatus.BAD_REQUEST, "EMPTY_MESSAGE");
+        }
         Message message = Message.builder()
                 .order(order)
                 .sender(sender)
@@ -71,8 +78,15 @@ public class MessageService {
         return response;
     }
 
+    // H-12: Validate that caller is a party to the order before listing messages
     @Transactional(readOnly = true)
     public Page<MessageResponse.MessageDetailResponse> listMessages(UUID orderId, Pageable pageable) {
+        User user = getAuthenticatedUser();
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId.toString()));
+        if (!order.getSme().getId().equals(user.getId()) && !order.getFactory().getId().equals(user.getId())) {
+            throw new UnauthorizedException("Access denied for this order's messages");
+        }
         return messageRepository.findByOrderIdOrderByCreatedAtAsc(orderId, pageable).map(mapper::toMessageResponse);
     }
 

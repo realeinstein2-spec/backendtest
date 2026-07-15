@@ -7,6 +7,7 @@ import com.makershub.enums.UserRole;
 import com.makershub.enums.VerificationStatus;
 import com.makershub.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,10 @@ import java.time.temporal.ChronoUnit;
 @Service
 @RequiredArgsConstructor
 public class AnalyticsService {
+
+    // M-12: Configurable fee rate instead of hardcoded constant
+    @Value("${makershub.platform.fee-percent:0.035}")
+    private BigDecimal platformFeePercent;
 
     private final UserRepository userRepository;
     private final FactoryRepository factoryRepository;
@@ -32,7 +37,8 @@ public class AnalyticsService {
         long verifiedFactories = factoryRepository.countByVerificationStatus(VerificationStatus.VERIFIED);
         long pendingVerifications = factoryRepository.countByVerificationStatus(VerificationStatus.PENDING);
         long totalOrders = orderRepository.count();
-        long completedOrders = orderRepository.countCompletedSince(Instant.EPOCH);
+        // M-11: Use `since` instead of Instant.EPOCH so completedOrders reflects the last 30 days
+        long completedOrders = orderRepository.countCompletedSince(since);
         long openDisputes = disputeRepository.countByStatus(DisputeStatus.OPEN) + disputeRepository.countByStatus(DisputeStatus.UNDER_REVIEW);
         BigDecimal gmv = orderRepository.sumGmvSince(since);
         BigDecimal feeRevenue = calculateFeeRevenue(gmv);
@@ -53,7 +59,7 @@ public class AnalyticsService {
 
     private BigDecimal calculateFeeRevenue(BigDecimal gmv) {
         if (gmv == null) return BigDecimal.ZERO;
-        return gmv.multiply(new BigDecimal("0.035")).setScale(2, RoundingMode.HALF_UP);
+        return gmv.multiply(platformFeePercent).setScale(2, RoundingMode.HALF_UP);
     }
 
     private double calculateEscrowSuccessRate() {

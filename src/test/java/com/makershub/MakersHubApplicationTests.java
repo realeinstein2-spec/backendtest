@@ -6,6 +6,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@org.junit.jupiter.api.Disabled("Requires running Docker Desktop/daemon to run Testcontainers")
 class MakersHubApplicationTests {
 
     @Test

@@ -17,6 +17,8 @@ import com.makershub.repository.ReviewRepository;
 import com.makershub.repository.UserRepository;
 import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -70,12 +72,18 @@ public class ReviewService {
         return mapper.toReviewResponse(saved);
     }
 
+    // C-11: Only update rating average here; totalOrders is incremented in OrderService when an order completes
     @Transactional
     protected void updateUserRating(User user) {
         Double avg = reviewRepository.calculateAverageRatingByReviewedId(user.getId());
         user.setRatingAvg(avg != null ? avg : 0.0);
-        user.setTotalOrders(user.getTotalOrders() + 1);
         userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ReviewResponse.ReviewDetailResponse> getReviewsForUser(UUID userId, Pageable pageable) {
+        return reviewRepository.findByReviewedIdOrderByCreatedAtDesc(userId, pageable)
+                .map(mapper::toReviewResponse);
     }
 
     private User getAuthenticatedUser() {

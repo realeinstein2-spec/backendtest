@@ -22,6 +22,7 @@ import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,11 @@ public class JobService {
         if (sme.getRole() != UserRole.SME_OWNER && sme.getRole() != UserRole.ENTERPRISE) {
             throw new UnauthorizedException("Only SMEs can post jobs");
         }
+        // M-15: Validate deadline is in the future
+        if (request.getDeadline() != null && request.getDeadline().isBefore(java.time.LocalDate.now())) {
+            throw new com.makershub.exception.BusinessException("Job deadline must be in the future",
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_DEADLINE");
+        }
         JobListing job = JobListing.builder()
                 .sme(sme)
                 .title(request.getTitle())
@@ -67,9 +73,12 @@ public class JobService {
         return mapper.toJobResponse(saved);
     }
 
+    // C-12: Pass parsed budget values instead of null
     @Transactional(readOnly = true)
     public Page<JobResponse.JobDetailResponse> listOpenJobs(String sectorTag, String minBudget, String maxBudget, Pageable pageable) {
-        return jobRepository.findOpenJobs(sectorTag, null, null, pageable).map(mapper::toJobResponse);
+        java.math.BigDecimal minBud = minBudget != null && !minBudget.isBlank() ? new java.math.BigDecimal(minBudget) : null;
+        java.math.BigDecimal maxBud = maxBudget != null && !maxBudget.isBlank() ? new java.math.BigDecimal(maxBudget) : null;
+        return jobRepository.findOpenJobs(sectorTag, minBud, maxBud, pageable).map(mapper::toJobResponse);
     }
 
     @Transactional(readOnly = true)
@@ -86,6 +95,8 @@ public class JobService {
                 job.getSectorTag(), job.getQuantity(), 6.6885, -1.6244, 50000.0);
     }
 
+    // M-2: Run factory notifications asynchronously so job creation is not blocked
+    @Async
     private void notifyMatchingFactories(JobListing job) {
         findMatchingFactories(job).forEach(factory ->
             notificationService.sendNotification(NotificationEvent.builder()

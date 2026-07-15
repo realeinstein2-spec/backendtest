@@ -1,6 +1,7 @@
 package com.makershub.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.makershub.dto.request.PaymentRequest;
 import com.makershub.entity.EscrowTransaction;
 import com.makershub.entity.Order;
@@ -42,6 +43,8 @@ public class PaymentService {
     private final AuditLogger auditLogger;
     private final PaystackSignatureVerifier signatureVerifier;
     private final RestTemplate restTemplate;
+    // M-8: Use Spring-managed ObjectMapper bean instead of instantiating per-request
+    private final ObjectMapper objectMapper;
 
     @Value("${makershub.platform.fee-percent:0.035}")
     private BigDecimal platformFeePercent;
@@ -67,6 +70,15 @@ public class PaymentService {
         if (order.getStatus() != OrderStatus.PAYMENT_PENDING) {
             throw new BusinessException("Order is not awaiting payment", HttpStatus.CONFLICT, "ORDER_NOT_AWAITING_PAYMENT");
         }
+
+        // C-14: Prevent duplicate escrow records if initiatePayment is called more than once
+        if (escrowRepository.findByOrderId(orderId).isPresent()) {
+            log.warn("Payment already initiated for order {}. Returning existing reference.", orderId);
+            EscrowTransaction existing = escrowRepository.findByOrderId(orderId).get();
+            return Map.of("reference", existing.getPaystackReference(),
+                    "authorization_url", "https://paystack.com/pay/" + existing.getPaystackReference());
+        }
+
         String reference = "MKH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
         BigDecimal amountKobo = order.getAgreedAmountGhs().multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP);
 
@@ -112,14 +124,23 @@ public class PaymentService {
             throw new BusinessException("Invalid webhook signature", HttpStatus.UNAUTHORIZED, "INVALID_SIGNATURE");
         }
         try {
-            JsonNode event = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
+            // M-8: Use injected ObjectMapper bean
+            JsonNode event = objectMapper.readTree(payload);
             String eventType = event.path("event").asText();
             JsonNode data = event.path("data");
             String reference = data.path("reference").asText();
             if ("charge.success".equals(eventType)) {
                 processSuccessfulCharge(reference, data);
+            } else if ("charge.failed".equals(eventType)) {
+                // M-10: Handle failed charges by marking escrow as pending-failed state
+                handleFailedCharge(reference);
             } else if ("transfer.success".equals(eventType)) {
-                log.info("Transfer success: {}", reference);
+                // M-9: Log transfer success and confirm payout audit trail
+                log.info("Paystack transfer.success received for reference: {}", reference);
+                escrowRepository.findByPaystackReference(reference).ifPresent(escrow -> {
+                    auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
+                            escrow.getEscrowStatus().name(), "PAYOUT_CONFIRMED");
+                });
             }
         } catch (Exception ex) {
             throw new BusinessException("Webhook processing failed", HttpStatus.BAD_REQUEST, "WEBHOOK_ERROR");
@@ -158,7 +179,20 @@ public class PaymentService {
         Order order = escrow.getOrder();
         order.setStatus(OrderStatus.IN_ESCROW);
         orderRepository.save(order);
-        auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(), EscrowStatus.PENDING.name(), EscrowStatus.HELD.name());
+        // Fix: Use UPDATE action for a status change; ESCROW_RELEASE is reserved for actual release events
+        auditLogger.log(AuditAction.UPDATE, "ESCROW", escrow.getId(), EscrowStatus.PENDING.name(), EscrowStatus.HELD.name());
+    }
+
+    // M-10: Handle charge.failed — log warning and keep escrow in PENDING state (no FAILED status in enum)
+    private void handleFailedCharge(String reference) {
+        escrowRepository.findByPaystackReference(reference).ifPresent(escrow -> {
+            if (escrow.getEscrowStatus() == EscrowStatus.PENDING) {
+                // EscrowStatus.FAILED does not exist; log the failure for operator visibility
+                log.warn("Payment failed for reference {}. Escrow {} remains in PENDING state.", reference, escrow.getId());
+                auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
+                        EscrowStatus.PENDING.name(), "CHARGE_FAILED");
+            }
+        });
     }
 
     private User getAuthenticatedUser() {

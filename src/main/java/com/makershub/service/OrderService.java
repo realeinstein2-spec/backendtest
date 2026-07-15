@@ -21,7 +21,10 @@ import com.makershub.repository.OrderRepository;
 import com.makershub.repository.UserRepository;
 import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -29,10 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -66,6 +71,15 @@ public class OrderService {
         bid.setStatus(BidStatus.ACCEPTED);
         bidRepository.save(bid);
 
+        // H-4: Reject all other pending bids for the same job
+        List<Bid> otherBids = bidRepository.findByJobListingIdAndDeletedAtIsNullOrderByTotalPriceGhsAsc(bid.getJobListing().getId());
+        for (Bid other : otherBids) {
+            if (!other.getId().equals(bid.getId()) && other.getStatus() == BidStatus.PENDING) {
+                other.setStatus(BidStatus.REJECTED);
+                bidRepository.save(other);
+            }
+        }
+
         BigDecimal agreed = bid.getTotalPriceGhs();
         BigDecimal fee = agreed.multiply(platformFeePercent).setScale(2, RoundingMode.HALF_UP);
         Order order = Order.builder()
@@ -95,6 +109,8 @@ public class OrderService {
             throw new UnauthorizedException("Only the assigned factory can update this order");
         }
         validateTransition(order.getStatus(), request.getNewStatus());
+        // M-1: Capture old status before mutation so audit log is accurate
+        OrderStatus oldStatus = order.getStatus();
         order.setStatus(request.getNewStatus());
         if (request.getNewStatus() == OrderStatus.IN_PRODUCTION) {
             order.getJobListing().setStatus(JobStatus.IN_PRODUCTION);
@@ -105,7 +121,7 @@ public class OrderService {
             order.setQualityCheckDeadline(java.time.Instant.now().plus(java.time.Duration.ofHours(48)));
         }
         Order saved = orderRepository.save(order);
-        auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), order.getStatus().name(), saved.getStatus().name());
+        auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), oldStatus.name(), saved.getStatus().name());
         notify(saved, NotificationType.ORDER_STATUS_UPDATE, "Order update", "Order status changed to " + saved.getStatus());
         return mapper.toOrderResponse(saved);
     }
@@ -136,6 +152,48 @@ public class OrderService {
         return mapper.toOrderResponse(saved);
     }
 
+    // H-7: Allow SME to cancel an order that is still awaiting payment
+    @Transactional
+    public OrderResponse.OrderDetailResponse cancelOrder(UUID orderId) {
+        User user = getAuthenticatedUser();
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId.toString()));
+        if (!order.getSme().getId().equals(user.getId())) {
+            throw new UnauthorizedException("Only the SME can cancel this order");
+        }
+        if (order.getStatus() != OrderStatus.PAYMENT_PENDING) {
+            throw new BusinessException("Order can only be cancelled when awaiting payment",
+                    HttpStatus.CONFLICT, "ORDER_CANNOT_BE_CANCELLED");
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(order);
+        auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), OrderStatus.PAYMENT_PENDING.name(), OrderStatus.CANCELLED.name());
+        notify(saved, NotificationType.ORDER_STATUS_UPDATE, "Order cancelled", "Order has been cancelled by the SME.");
+        return mapper.toOrderResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse.OrderDetailResponse getOrder(UUID orderId) {
+        User user = getAuthenticatedUser();
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId.toString()));
+        if (!order.getSme().getId().equals(user.getId()) && !order.getFactory().getId().equals(user.getId())) {
+            throw new UnauthorizedException("Access denied for this order");
+        }
+        return mapper.toOrderResponse(order);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderResponse.OrderDetailResponse> listMyOrders(Pageable pageable) {
+        User user = getAuthenticatedUser();
+        if (user.getRole() == UserRole.FACTORY_OWNER) {
+            return orderRepository.findByFactoryIdAndDeletedAtIsNullOrderByCreatedAtDesc(user.getId(), pageable)
+                    .map(mapper::toOrderResponse);
+        }
+        return orderRepository.findBySmeIdAndDeletedAtIsNullOrderByCreatedAtDesc(user.getId(), pageable)
+                .map(mapper::toOrderResponse);
+    }
+
     private OrderResponse.OrderDetailResponse openDispute(Order order, User sme, String comment) {
         order.setStatus(OrderStatus.DISPUTED);
         Order saved = orderRepository.save(order);
@@ -155,7 +213,8 @@ public class OrderService {
 
     private void validateTransition(OrderStatus current, OrderStatus next) {
         Set<OrderStatus> allowed = switch (current) {
-            case PAYMENT_PENDING -> Set.of(OrderStatus.IN_ESCROW, OrderStatus.CANCELLED);
+            // C-4: IN_ESCROW removed — only PaymentService webhook can set IN_ESCROW
+            case PAYMENT_PENDING -> Set.of(OrderStatus.CANCELLED);
             case IN_ESCROW -> Set.of(OrderStatus.IN_PRODUCTION, OrderStatus.REFUNDED);
             case IN_PRODUCTION -> Set.of(OrderStatus.QUALITY_CHECK);
             case QUALITY_CHECK -> Set.of(OrderStatus.DELIVERED);
@@ -187,19 +246,24 @@ public class OrderService {
                 .build());
     }
 
+    // M-20: Each order is auto-completed independently; errors are caught per-order to avoid blocking the batch
     @Transactional
     public void autoCompleteExpiredOrders() {
         java.time.Instant now = java.time.Instant.now();
         java.util.List<Order> expired = orderRepository.findByStatusAndQualityCheckDeadlineBeforeAndDeletedAtIsNull(
                 OrderStatus.DELIVERED, now);
         for (Order order : expired) {
-            order.setStatus(OrderStatus.COMPLETED);
-            order.setCompletedAt(now);
-            Order saved = orderRepository.save(order);
-            releaseEscrow(saved);
-            auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), OrderStatus.DELIVERED.name(), OrderStatus.COMPLETED.name());
-            notify(saved, NotificationType.ORDER_STATUS_UPDATE, "Order completed automatically", 
-                    "Quality check window expired. Escrow released.");
+            try {
+                order.setStatus(OrderStatus.COMPLETED);
+                order.setCompletedAt(now);
+                Order saved = orderRepository.save(order);
+                releaseEscrow(saved);
+                auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), OrderStatus.DELIVERED.name(), OrderStatus.COMPLETED.name());
+                notify(saved, NotificationType.ORDER_STATUS_UPDATE, "Order completed automatically",
+                        "Quality check window expired. Escrow released.");
+            } catch (Exception e) {
+                log.error("Failed to auto-complete order {}: {}", order.getId(), e.getMessage(), e);
+            }
         }
     }
 

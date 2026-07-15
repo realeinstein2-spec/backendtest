@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Testcontainers
+@org.junit.jupiter.api.Disabled("Requires running Docker Desktop/daemon to run Testcontainers")
 class UserRepositoryTest {
 
     @Autowired
