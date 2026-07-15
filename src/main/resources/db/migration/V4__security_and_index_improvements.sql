@@ -42,9 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_escrow_order_id
 CREATE INDEX IF NOT EXISTS idx_escrow_paystack_ref
     ON escrow_transactions (paystack_reference);
 
--- bids.job_listing_id — used for listing bids by job
+-- bids.job_id — used for listing bids by job
 CREATE INDEX IF NOT EXISTS idx_bids_job_listing
-    ON bids (job_listing_id)
+    ON bids (job_id)
     WHERE deleted_at IS NULL;
 
 -- disputes.order_id — used for order-based dispute lookup
@@ -57,8 +57,8 @@ CREATE INDEX IF NOT EXISTS idx_disputes_order_id
 -- ============================================================
 -- Drop old plain unique constraint if it exists
 ALTER TABLE featured_listings
-    DROP CONSTRAINT IF EXISTS featured_listings_job_listing_id_key;
+    DROP CONSTRAINT IF EXISTS featured_listings_factory_id_key;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_featured_active_unique
-    ON featured_listings (job_listing_id)
-    WHERE ends_at > NOW();
+    ON featured_listings (factory_id)
+    WHERE is_active = TRUE;
