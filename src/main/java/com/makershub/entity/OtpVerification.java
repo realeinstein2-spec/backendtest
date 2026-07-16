@@ -28,7 +28,7 @@ public class OtpVerification {
     @Column(name = "phone_number", nullable = false, unique = true, length = 20)
     private String phoneNumber;
 
-    @Column(name = "otp_code", nullable = false, length = 10)
+    @Column(name = "otp_code", nullable = false, length = 4)
     private String otpCode;
 
     @Column(name = "expiry_time", nullable = false)

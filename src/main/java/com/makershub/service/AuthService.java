@@ -219,7 +219,7 @@ public class AuthService {
      * C-6: OTP is dispatched via SMS only — never logged at INFO/WARN level.
      */
     private String generateAndSaveOtp(String phoneNumber, UUID userId) {
-        String otpCode = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+        String otpCode = String.format("%04d", SECURE_RANDOM.nextInt(10_000));
 
         OtpVerification verification = otpVerificationRepository.findByPhoneNumber(phoneNumber)
                 .orElseGet(() -> OtpVerification.builder().phoneNumber(phoneNumber).build());
