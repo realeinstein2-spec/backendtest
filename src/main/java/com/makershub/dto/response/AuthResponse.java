@@ -11,7 +11,11 @@ public final class AuthResponse {
 
     private AuthResponse() {}
 
-    /** Returned after successful OTP verification - contains the JWT tokens */
+    /**
+     * C-8: Returned after successful OTP verification.
+     * Contains the JWT access + refresh tokens.
+     * otpCode field removed — tokens are only issued post-OTP-verification.
+     */
     @Data
     @Builder
     public static class TokenResponse {
@@ -20,19 +24,24 @@ public final class AuthResponse {
         private Instant accessTokenExpiry;
         private Instant refreshTokenExpiry;
         private String tokenType;
-        // otpCode removed - tokens are only issued after OTP verification
     }
 
-    /** Returned after login() - signals OTP was sent, no tokens yet (C-8: MFA fix) */
+    /**
+     * C-8: Returned from login(). Signals that credentials are valid and OTP was sent.
+     * No JWT tokens are included — client must call POST /auth/verify to get tokens.
+     */
     @Data
     @Builder
     public static class PendingAuthResponse {
         private String phoneNumber;
         private String message;
-        /** Only populated in dev profile for testing convenience */
+        /** Only populated in dev profile for Swagger testing convenience. Null in production. */
         private String otpCode;
     }
 
+    /**
+     * Returned from register(). Confirms account was created and OTP was dispatched.
+     */
     @Data
     @Builder
     public static class UserSummaryResponse {
@@ -43,7 +52,7 @@ public final class AuthResponse {
         private Boolean isVerified;
         private String region;
         private String profileImageUrl;
-        /** Only populated in dev profile for testing convenience */
+        /** Only populated in dev profile for Swagger testing convenience. Null in production. */
         private String otpCode;
     }
 }

@@ -19,7 +19,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthInterceptor webSocketAuthInterceptor;
 
-    // H-10: Use same allowed origins as HTTP CORS policy
+    /**
+     * H-10: WebSocket allowed origins are scoped to the same domains as the HTTP CORS policy.
+     * Using setAllowedOriginPatterns("*") was a security vulnerability.
+     */
     @Value("#{'${makershub.cors.allowed-origins}'.split(',')}")
     private List<String> allowedOrigins;
 
@@ -33,8 +36,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // H-10: Restrict to allowed origins instead of wildcard "*"
         String[] origins = allowedOrigins.toArray(new String[0]);
+        // H-10: Restrict to configured allowed origins, not wildcard
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(origins)
                 .withSockJS();

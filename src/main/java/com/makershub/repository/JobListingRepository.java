@@ -18,10 +18,11 @@ public interface JobListingRepository extends JpaRepository<JobListing, UUID> {
 
     Page<JobListing> findByStatusAndDeletedAtIsNullOrderByCreatedAtDesc(JobStatus status, Pageable pageable);
 
-    @Query("SELECT j FROM JobListing j WHERE j.status = 'OPEN' AND j.deletedAt IS NULL " +
+    @Query("SELECT j FROM JobListing j WHERE j.status = com.makershub.enums.JobStatus.OPEN AND j.deletedAt IS NULL " +
            "AND (:sectorTag IS NULL OR j.sectorTag = :sectorTag) " +
            "AND (:minBudget IS NULL OR j.budgetMaxGhs >= :minBudget) " +
-           "AND (:maxBudget IS NULL OR j.budgetMinGhs <= :maxBudget)")
+           "AND (:maxBudget IS NULL OR j.budgetMinGhs <= :maxBudget) " +
+           "ORDER BY j.createdAt DESC")
     Page<JobListing> findOpenJobs(@Param("sectorTag") String sectorTag,
                                   @Param("minBudget") java.math.BigDecimal minBudget,
                                   @Param("maxBudget") java.math.BigDecimal maxBudget,

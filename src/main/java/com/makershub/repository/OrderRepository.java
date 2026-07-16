@@ -27,9 +27,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByStatusAndQualityCheckDeadlineBeforeAndDeletedAtIsNull(OrderStatus status, Instant deadline);
 
-    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = 'COMPLETED' AND o.createdAt >= :since")
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = com.makershub.enums.OrderStatus.COMPLETED AND o.completedAt >= :since")
     long countCompletedSince(@Param("since") Instant since);
 
-    @Query("SELECT COALESCE(SUM(o.agreedAmountGhs), 0) FROM Order o WHERE o.status = 'COMPLETED' AND o.createdAt >= :since")
+    @Query("SELECT COALESCE(SUM(o.agreedAmountGhs), 0) FROM Order o WHERE o.status = com.makershub.enums.OrderStatus.COMPLETED AND o.completedAt >= :since")
     java.math.BigDecimal sumGmvSince(@Param("since") Instant since);
 }

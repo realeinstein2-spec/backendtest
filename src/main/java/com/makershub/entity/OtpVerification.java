@@ -34,7 +34,10 @@ public class OtpVerification {
     @Column(name = "expiry_time", nullable = false)
     private Instant expiryTime;
 
-    /** Tracks failed OTP attempts. Locked after MAX_OTP_ATTEMPTS failures. */
+    /**
+     * C-7: Tracks failed OTP attempts.
+     * Account is locked out after AuthService.MAX_OTP_ATTEMPTS (5) failures.
+     */
     @Column(name = "attempt_count", nullable = false)
     @Builder.Default
     private Integer attemptCount = 0;

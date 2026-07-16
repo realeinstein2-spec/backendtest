@@ -19,6 +19,8 @@ public interface FactoryRepository extends JpaRepository<Factory, UUID> {
 
     Optional<Factory> findByUserIdAndDeletedAtIsNull(UUID userId);
 
+    Optional<Factory> findByIdAndDeletedAtIsNull(UUID id);
+
     @Query(value = """
             SELECT f.* FROM factories f
             JOIN factory_sectors fs ON f.id = fs.factory_id

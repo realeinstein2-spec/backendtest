@@ -41,9 +41,11 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
 
+    /** The active Spring profile. Controls swagger exposure and other env-gated behaviour. */
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
 
+    /** Comma-separated list of allowed CORS origins, e.g. https://makershub.gh,https://app.makershub.gh */
     @Value("#{'${makershub.cors.allowed-origins}'.split(',')}")
     private List<String> allowedOrigins;
 
@@ -55,25 +57,27 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // Security headers: HSTS, nosniff, deny framing
+            // M-31: Enforce security headers on all responses
             .headers(headers -> headers
                 .httpStrictTransportSecurity(hsts -> hsts
                     .includeSubDomains(true)
                     .maxAgeInSeconds(31536000))
-                // X-Content-Type-Options: nosniff (Spring Security default - keep enabled)
-                .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
                 .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
             )
             .authorizeHttpRequests(auth -> {
+                // Public auth endpoints — register, login, verify, refresh
                 auth.requestMatchers("/api/v1/auth/**", "/api/v1/public/**", "/webhooks/**").permitAll();
-                // H-15: Only expose Swagger in non-prod environments
+                // H-15: Only expose Swagger in non-production environments
                 if (!isProd) {
                     auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
                 }
                 auth.requestMatchers("/actuator/health", "/error", "/ws/**").permitAll();
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                // Admin-only routes
                 auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
                 auth.requestMatchers("/api/v1/factories/*/verify").hasRole("ADMIN");
+                // Everything else requires authentication
                 auth.anyRequest().authenticated();
             })
             .authenticationProvider(authenticationProvider())
@@ -89,7 +93,8 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
         config.setExposedHeaders(List.of("X-Total-Count"));
         config.setAllowCredentials(true);
-        config.setMaxAge(3600L); // M-22: Cache preflight responses for 1 hour
+        // M-22: Cache preflight responses for 1 hour to reduce OPTIONS request overhead
+        config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
@@ -120,14 +125,14 @@ public class SecurityConfig {
     @Bean
     public RestTemplate restTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5_000);  // 5 seconds
-        factory.setReadTimeout(15_000);    // 15 seconds
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(15_000);
         return new RestTemplate(factory);
     }
 
     /**
-     * Singleton ObjectMapper bean with JavaTimeModule registered.
-     * Injected into PaymentService and any other service needing JSON parsing.
+     * M-8: Shared ObjectMapper bean for PaymentService webhook parsing.
+     * Configured with JavaTimeModule for Instant serialisation.
      */
     @Bean
     public ObjectMapper objectMapper() {

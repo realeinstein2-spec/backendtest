@@ -36,10 +36,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DisputeService {
 
+    /** Terminal statuses that are valid resolutions for a dispute (M-17). */
+    private static final Set<DisputeStatus> TERMINAL_RESOLUTIONS = Set.of(
+            DisputeStatus.RESOLVED_BUYER, DisputeStatus.RESOLVED_SELLER,
+            DisputeStatus.RESOLVED_SPLIT, DisputeStatus.CLOSED);
+
     private final DisputeRepository disputeRepository;
     private final OrderRepository orderRepository;
-    private final UserRepository userRepository;
     private final EscrowTransactionRepository escrowRepository;
+    private final UserRepository userRepository;
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
@@ -52,10 +57,14 @@ public class DisputeService {
         if (!order.getSme().getId().equals(user.getId()) && !order.getFactory().getId().equals(user.getId())) {
             throw new UnauthorizedException("Only order parties can raise a dispute");
         }
-        if (order.getStatus() != OrderStatus.DELIVERED && order.getStatus() != OrderStatus.QUALITY_CHECK && order.getStatus() != OrderStatus.DISPUTED) {
-            throw new BusinessException("Dispute can only be raised during quality check or after delivery", HttpStatus.CONFLICT, "INVALID_DISPUTE_STATE");
+        if (order.getStatus() != OrderStatus.DELIVERED
+                && order.getStatus() != OrderStatus.QUALITY_CHECK
+                && order.getStatus() != OrderStatus.DISPUTED) {
+            throw new BusinessException("Dispute can only be raised during quality check or after delivery",
+                    HttpStatus.CONFLICT, "INVALID_DISPUTE_STATE");
         }
-        if (order.getQualityCheckDeadline() != null && order.getQualityCheckDeadline().isBefore(java.time.Instant.now())) {
+        if (order.getQualityCheckDeadline() != null
+                && order.getQualityCheckDeadline().isBefore(Instant.now())) {
             throw new BusinessException("Dispute window has expired", HttpStatus.CONFLICT, "DISPUTE_WINDOW_EXPIRED");
         }
         if (disputeRepository.findByOrderId(orderId).isPresent()) {
@@ -63,6 +72,7 @@ public class DisputeService {
         }
         order.setStatus(OrderStatus.DISPUTED);
         orderRepository.save(order);
+
         Dispute dispute = Dispute.builder()
                 .order(order)
                 .raisedBy(user)
@@ -73,65 +83,79 @@ public class DisputeService {
                 .build();
         Dispute saved = disputeRepository.save(dispute);
         auditLogger.log(AuditAction.CREATE, "DISPUTE", saved.getId(), null, null);
-        notify(saved, NotificationType.DISPUTE_OPENED, "Dispute opened", "A dispute has been opened on order " + orderId);
+        notify(saved, NotificationType.DISPUTE_OPENED, "Dispute opened",
+                "A dispute has been opened on order " + orderId);
         return mapper.toDisputeResponse(saved);
     }
 
-    // H-11: Only admins may list all disputes
+    /**
+     * H-11: Admin-only — any user previously could read all disputes.
+     */
     @Transactional(readOnly = true)
     public Page<DisputeResponse.DisputeDetailResponse> listDisputes(Pageable pageable) {
         User user = getAuthenticatedUser();
         if (user.getRole() != UserRole.ADMIN) {
             throw new UnauthorizedException("Only admins can list all disputes");
         }
-        return disputeRepository.findByStatusInOrderByCreatedAtAsc(List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW), pageable)
+        return disputeRepository.findByStatusInOrderByCreatedAtAsc(
+                List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW), pageable)
                 .map(mapper::toDisputeResponse);
     }
 
+    /**
+     * C-3: Admin role guard added.
+     * C-10: Escrow is released/refunded based on resolution.
+     * M-17: Resolution must be a terminal status.
+     */
     @Transactional
-    public DisputeResponse.DisputeDetailResponse resolveDispute(UUID disputeId, DisputeRequest.ResolveDisputeRequest request) {
-        // C-3: Only admins may resolve disputes
+    public DisputeResponse.DisputeDetailResponse resolveDispute(UUID disputeId,
+            DisputeRequest.ResolveDisputeRequest request) {
+
+        // C-3: Only admins can resolve disputes
         User admin = getAuthenticatedUser();
         if (admin.getRole() != UserRole.ADMIN) {
             throw new UnauthorizedException("Only admins can resolve disputes");
         }
 
-        // M-17: Resolution must be a terminal status
-        Set<DisputeStatus> terminalStatuses = Set.of(
-                DisputeStatus.RESOLVED_BUYER, DisputeStatus.RESOLVED_SELLER,
-                DisputeStatus.RESOLVED_SPLIT, DisputeStatus.CLOSED);
-        if (!terminalStatuses.contains(request.getResolution())) {
-            throw new BusinessException("Resolution must be a terminal status",
+        // M-17: Prevent re-opening disputes by passing a non-terminal status
+        if (!TERMINAL_RESOLUTIONS.contains(request.getResolution())) {
+            throw new BusinessException(
+                    "Resolution must be a terminal status: RESOLVED_BUYER, RESOLVED_SELLER, RESOLVED_SPLIT, or CLOSED",
                     HttpStatus.BAD_REQUEST, "INVALID_RESOLUTION_STATUS");
         }
 
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Dispute", disputeId.toString()));
+
         dispute.setStatus(request.getResolution());
         dispute.setAdminNotes(request.getAdminNotes());
         dispute.setResolutionAmountGhs(request.getRefundAmountGhs());
         dispute.setResolvedAt(Instant.now());
         Dispute saved = disputeRepository.save(dispute);
+
         Order order = dispute.getOrder();
-        order.setStatus(request.getResolution() == DisputeStatus.RESOLVED_BUYER ? OrderStatus.REFUNDED : OrderStatus.COMPLETED);
+        boolean buyerWins = request.getResolution() == DisputeStatus.RESOLVED_BUYER;
+        order.setStatus(buyerWins ? OrderStatus.REFUNDED : OrderStatus.COMPLETED);
         orderRepository.save(order);
 
-        // C-10: Release or refund escrow based on dispute resolution
+        // C-10: Trigger escrow release or refund based on who wins
         escrowRepository.findByOrderId(order.getId()).ifPresent(escrow -> {
-            if (request.getResolution() == DisputeStatus.RESOLVED_BUYER) {
+            if (buyerWins) {
                 escrow.setEscrowStatus(EscrowStatus.REFUNDED);
-                escrow.setRefundedAt(java.time.Instant.now());
+                escrow.setRefundedAt(Instant.now());
             } else {
                 escrow.setEscrowStatus(EscrowStatus.RELEASED);
-                escrow.setReleasedAt(java.time.Instant.now());
+                escrow.setReleasedAt(Instant.now());
             }
             escrowRepository.save(escrow);
             auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
                     EscrowStatus.HELD.name(), escrow.getEscrowStatus().name());
         });
 
-        auditLogger.log(AuditAction.DISPUTE_RESOLVE, "DISPUTE", saved.getId(), DisputeStatus.OPEN.name(), saved.getStatus().name());
-        notify(saved, NotificationType.DISPUTE_RESOLVED, "Dispute resolved", "Your dispute has been resolved with status " + saved.getStatus());
+        auditLogger.log(AuditAction.DISPUTE_RESOLVE, "DISPUTE", saved.getId(),
+                DisputeStatus.OPEN.name(), saved.getStatus().name());
+        notify(saved, NotificationType.DISPUTE_RESOLVED, "Dispute resolved",
+                "Your dispute has been resolved: " + saved.getStatus());
         return mapper.toDisputeResponse(saved);
     }
 
@@ -140,18 +164,21 @@ public class DisputeService {
                 .recipientId(dispute.getOrder().getSme().getId())
                 .phoneNumber(dispute.getOrder().getSme().getPhoneNumber())
                 .type(type).title(title).body(body)
-                .data(Map.of("orderId", dispute.getOrder().getId().toString(), "disputeId", dispute.getId().toString()))
+                .data(Map.of("orderId", dispute.getOrder().getId().toString(),
+                        "disputeId", dispute.getId().toString()))
                 .build());
         notificationService.sendNotification(NotificationEvent.builder()
                 .recipientId(dispute.getOrder().getFactory().getId())
                 .phoneNumber(dispute.getOrder().getFactory().getPhoneNumber())
                 .type(type).title(title).body(body)
-                .data(Map.of("orderId", dispute.getOrder().getId().toString(), "disputeId", dispute.getId().toString()))
+                .data(Map.of("orderId", dispute.getOrder().getId().toString(),
+                        "disputeId", dispute.getId().toString()))
                 .build());
     }
 
     private User getAuthenticatedUser() {
-        UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
         return userRepository.findByIdAndDeletedAtIsNull(principal.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", principal.getId().toString()));
     }
