@@ -34,7 +34,7 @@ public class JobController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('FACTORY_OWNER')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse.PagedResponse<JobResponse.JobDetailResponse>> listOpenJobs(
             @RequestParam(required = false) String sectorTag,
             @RequestParam(required = false) String minBudget,
