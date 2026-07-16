@@ -110,6 +110,13 @@ public class JobService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public Page<JobResponse.JobDetailResponse> listMyJobs(Pageable pageable) {
+        User sme = getAuthenticatedUser();
+        return jobRepository.findBySmeIdAndDeletedAtIsNullOrderByCreatedAtDesc(sme.getId(), pageable)
+                .map(mapper::toJobResponse);
+    }
+
     private User getAuthenticatedUser() {
         UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findByIdAndDeletedAtIsNull(principal.getId())

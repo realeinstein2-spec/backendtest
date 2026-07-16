@@ -50,6 +50,20 @@ public class JobController {
                 .build());
     }
 
+    @GetMapping("/my-jobs")
+    @PreAuthorize("hasAnyRole('SME_OWNER', 'ENTERPRISE')")
+    public ResponseEntity<ApiResponse.PagedResponse<JobResponse.JobDetailResponse>> listMyJobs(
+            @PageableDefault(size = 20) Pageable pageable) {
+        Page<JobResponse.JobDetailResponse> page = jobService.listMyJobs(pageable);
+        return ResponseEntity.ok(ApiResponse.PagedResponse.<JobResponse.JobDetailResponse>builder()
+                .content(page.getContent())
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<JobResponse.JobDetailResponse> getJob(@PathVariable UUID id) {
         return ResponseEntity.ok(jobService.getJob(id));
