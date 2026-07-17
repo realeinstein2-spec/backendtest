@@ -24,6 +24,7 @@ public final class AuthResponse {
         private Instant accessTokenExpiry;
         private Instant refreshTokenExpiry;
         private String tokenType;
+        private UserSummaryResponse user;
     }
 
     /**

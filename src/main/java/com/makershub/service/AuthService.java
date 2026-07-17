@@ -188,7 +188,7 @@ public class AuthService {
         auditLogger.log(AuditAction.VERIFY, "USER", user.getId(), "UNVERIFIED", "VERIFIED");
 
         // C-8: Issue JWT tokens ONLY after successful OTP verification
-        return buildTokenResponse(new UserDetailsImpl(user));
+        return buildTokenResponse(new UserDetailsImpl(user), user);
     }
 
     // ───────────────────────────── REFRESH TOKEN ─────────────────────────────
@@ -209,7 +209,7 @@ public class AuthService {
         if (!user.getIsVerified()) {
             throw new BusinessException("Account is not verified", HttpStatus.FORBIDDEN, "ACCOUNT_NOT_VERIFIED");
         }
-        return buildTokenResponse(new UserDetailsImpl(user));
+        return buildTokenResponse(new UserDetailsImpl(user), user);
     }
 
     // ─────────────────────────────── HELPERS ─────────────────────────────────
@@ -242,13 +242,24 @@ public class AuthService {
         return otpCode;
     }
 
-    private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails) {
+    private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails, User user) {
+        AuthResponse.UserSummaryResponse userSummary = AuthResponse.UserSummaryResponse.builder()
+                .id(user.getId())
+                .phoneNumber(user.getPhoneNumber())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .isVerified(user.getIsVerified())
+                .region(user.getRegion())
+                .profileImageUrl(user.getProfileImageUrl())
+                .build();
+
         return AuthResponse.TokenResponse.builder()
                 .accessToken(jwtUtil.generateAccessToken(userDetails))
                 .refreshToken(jwtUtil.generateRefreshToken(userDetails))
                 .accessTokenExpiry(jwtUtil.getAccessExpiry())
                 .refreshTokenExpiry(jwtUtil.getRefreshExpiry())
                 .tokenType("Bearer")
+                .user(userSummary)
                 .build();
     }
 
