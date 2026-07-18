@@ -12,6 +12,7 @@ This guide explains how to connect your frontend file pickers (avatar uploads, j
   `Authorization: Bearer <ACCESS_TOKEN>`
 * **Content-Type**: `multipart/form-data`
 * **Request Body Parameter**: `file` (must contain the binary file upload)
+* **Response Model**: `FileResponse.UploadResponse` (JSON containing `url` field)
 
 ---
 
