@@ -38,7 +38,7 @@ public class FileController {
         } catch (IllegalStateException ex) {
             throw new BusinessException("Cloudinary is not configured. Please set Cloudinary environment variables.", 
                     HttpStatus.BAD_REQUEST, "CLOUDINARY_NOT_CONFIGURED");
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             throw new BusinessException("Failed to upload file: " + ex.getMessage(), 
                     HttpStatus.INTERNAL_SERVER_ERROR, "FILE_UPLOAD_ERROR");
         }
