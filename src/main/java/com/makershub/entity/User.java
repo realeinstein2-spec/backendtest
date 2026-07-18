@@ -83,6 +83,9 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name = "last_active_at")
+    private Instant lastActiveAt;
+
     @com.fasterxml.jackson.annotation.JsonIgnore
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Factory factory;

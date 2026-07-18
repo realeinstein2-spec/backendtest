@@ -52,4 +52,19 @@ public class AdminController {
         adminService.unsuspendUser(id);
         return ResponseEntity.ok(ApiResponse.ErrorResponse.builder().message("User unsuspended").build());
     }
+
+    @GetMapping("/users/active")
+    public ResponseEntity<ApiResponse.PagedResponse<com.makershub.dto.response.AuthResponse.UserSummaryResponse>> getActiveUsers(
+            @RequestParam(defaultValue = "5") int minutes,
+            @PageableDefault(size = 20) Pageable pageable) {
+        Page<com.makershub.entity.User> page = adminService.getActiveUsers(minutes, pageable);
+        Page<com.makershub.dto.response.AuthResponse.UserSummaryResponse> mapped = page.map(mapper::toUserSummary);
+        return ResponseEntity.ok(ApiResponse.PagedResponse.<com.makershub.dto.response.AuthResponse.UserSummaryResponse>builder()
+                .content(mapped.getContent())
+                .page(mapped.getNumber())
+                .size(mapped.getSize())
+                .totalElements(mapped.getTotalElements())
+                .totalPages(mapped.getTotalPages())
+                .build());
+    }
 }

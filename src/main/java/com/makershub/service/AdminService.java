@@ -103,4 +103,10 @@ public class AdminService {
         auditLogger.log(AuditAction.ADMIN_ACTION, "USER", saved.getId(), "SUSPENDED", "ACTIVE");
         return saved;
     }
+
+    @Transactional(readOnly = true)
+    public Page<User> getActiveUsers(int activeMinutesWindow, Pageable pageable) {
+        java.time.Instant threshold = java.time.Instant.now().minus(java.time.Duration.ofMinutes(activeMinutesWindow));
+        return userRepository.findByLastActiveAtAfterAndDeletedAtIsNullOrderByLastActiveAtDesc(threshold, pageable);
+    }
 }

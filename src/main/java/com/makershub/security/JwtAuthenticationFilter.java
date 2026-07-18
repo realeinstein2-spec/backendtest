@@ -25,6 +25,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final com.makershub.repository.UserRepository userRepository;
+
+    private final java.util.Map<UUID, Long> lastActiveCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -40,12 +43,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    updateLastActiveOptimized(impl.getId());
                 }
             }
         } catch (Exception ex) {
             log.warn("Could not set user authentication: {}", ex.getMessage());
         }
         filterChain.doFilter(request, response);
+    }
+
+    private void updateLastActiveOptimized(UUID userId) {
+        long now = System.currentTimeMillis();
+        Long lastUpdated = lastActiveCache.get(userId);
+        if (lastUpdated == null || (now - lastUpdated) > 60_000) { // 1 minute interval
+            lastActiveCache.put(userId, now);
+            try {
+                userRepository.findById(userId).ifPresent(user -> {
+                    user.setLastActiveAt(java.time.Instant.ofEpochMilli(now));
+                    userRepository.save(user);
+                });
+            } catch (Exception e) {
+                log.warn("Failed to update last active timestamp for user {}: {}", userId, e.getMessage());
+            }
+        }
     }
 
     private String extractJwtFromRequest(HttpServletRequest request) {
