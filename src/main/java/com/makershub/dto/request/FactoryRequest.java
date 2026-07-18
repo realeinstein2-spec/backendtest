@@ -46,9 +46,6 @@ public final class FactoryRequest {
 
         @Size(max = 500)
         private String profileImageUrl;
-
-        @Size(max = 200)
-        private String fullName;
     }
 
     @Data

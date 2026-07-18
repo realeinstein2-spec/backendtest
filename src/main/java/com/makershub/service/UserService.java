@@ -76,7 +76,6 @@ public class UserService {
         if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
         if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
-        if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
         if (userUpdated) {
             userRepository.save(user);
         }
@@ -115,7 +114,6 @@ public class UserService {
         if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
         if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
-        if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
         if (userUpdated) {
             userRepository.save(user);
         }
