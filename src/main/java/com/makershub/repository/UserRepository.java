@@ -23,5 +23,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByRoleAndIsVerifiedTrue(UserRole role);
 
+    Optional<User> findByEmailAndDeletedAtIsNull(String email);
+
     Page<User> findByLastActiveAtAfterAndDeletedAtIsNullOrderByLastActiveAtDesc(Instant threshold, Pageable pageable);
 }

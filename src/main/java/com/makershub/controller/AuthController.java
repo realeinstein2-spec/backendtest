@@ -42,4 +42,12 @@ public class AuthController {
     public ResponseEntity<AuthResponse.TokenResponse> verify(@Valid @RequestBody AuthRequest.OtpRequest request) {
         return ResponseEntity.ok(authService.verifyOtp(request));
     }
+
+    @PostMapping("/social/{provider}")
+    @Operation(summary = "Authenticate or register via Google or Apple using social idToken")
+    public ResponseEntity<AuthResponse.TokenResponse> socialAuth(
+            @PathVariable String provider,
+            @Valid @RequestBody AuthRequest.SocialLoginRequest request) {
+        return ResponseEntity.ok(authService.socialLogin(request, provider));
+    }
 }

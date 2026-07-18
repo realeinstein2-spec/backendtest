@@ -62,4 +62,17 @@ public final class AuthRequest {
         @Size(min = 4, max = 8)
         private String otp;
     }
+
+    @Data
+    public static class SocialLoginRequest {
+        @NotBlank
+        private String idToken;
+
+        @NotNull
+        private UserRole role;
+
+        private String fullName;
+
+        private String phoneNumber;
+    }
 }

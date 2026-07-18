@@ -26,6 +26,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import java.util.Collections;
+import java.util.Base64;
+import java.util.Map;
+import java.util.List;
+
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Set;
@@ -261,6 +272,136 @@ public class AuthService {
                 .tokenType("Bearer")
                 .user(userSummary)
                 .build();
+    }
+
+    @Transactional
+    public AuthResponse.TokenResponse socialLogin(AuthRequest.SocialLoginRequest request, String provider) {
+        String email = null;
+        String fullName = request.getFullName();
+
+        if ("google".equalsIgnoreCase(provider)) {
+            try {
+                NetHttpTransport transport = new NetHttpTransport();
+                GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
+                String googleClientId = environment.getProperty("makershub.google.client-id");
+                
+                GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
+                        .setAudience(Collections.singletonList(googleClientId))
+                        .build();
+
+                GoogleIdToken idToken = verifier.verify(request.getIdToken());
+                if (idToken == null) {
+                    throw new BusinessException("Invalid Google token", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                }
+                GoogleIdToken.Payload payload = idToken.getPayload();
+                email = payload.getEmail();
+                if (fullName == null || fullName.trim().isEmpty()) {
+                    fullName = (String) payload.get("name");
+                }
+            } catch (Exception e) {
+                throw new BusinessException("Google verification failed: " + e.getMessage(), HttpStatus.UNAUTHORIZED, "SOCIAL_AUTH_FAILED");
+            }
+        } else if ("apple".equalsIgnoreCase(provider)) {
+            try {
+                String appleClientId = environment.getProperty("makershub.apple.client-id");
+                org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+                Map<String, Object> response = restTemplate.getForObject("https://appleid.apple.com/auth/keys", Map.class);
+                List<Map<String, Object>> keys = (List<Map<String, Object>>) response.get("keys");
+                
+                String kid = null;
+                String[] parts = request.getIdToken().split("\\.");
+                if (parts.length > 0) {
+                    String headerJson = new String(Base64.getUrlDecoder().decode(parts[0]));
+                    Map<String, Object> header = new com.fasterxml.jackson.databind.ObjectMapper().readValue(headerJson, Map.class);
+                    kid = (String) header.get("kid");
+                }
+                
+                if (kid == null) {
+                    throw new BusinessException("Missing key ID in Apple token", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                }
+                
+                Map<String, Object> matchingKey = null;
+                for (Map<String, Object> key : keys) {
+                    if (kid.equals(key.get("kid"))) {
+                        matchingKey = key;
+                        break;
+                    }
+                }
+                if (matchingKey == null) {
+                    throw new BusinessException("No matching Apple key found", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                }
+                
+                String modulus = (String) matchingKey.get("n");
+                String exponent = (String) matchingKey.get("e");
+                byte[] nb = Base64.getUrlDecoder().decode(modulus);
+                byte[] eb = Base64.getUrlDecoder().decode(exponent);
+                java.math.BigInteger n = new java.math.BigInteger(1, nb);
+                java.math.BigInteger e = new java.math.BigInteger(1, eb);
+                java.security.spec.RSAPublicKeySpec spec = new java.security.spec.RSAPublicKeySpec(n, e);
+                java.security.KeyFactory kf = java.security.KeyFactory.getInstance("RSA");
+                java.security.PublicKey publicKey = kf.generatePublic(spec);
+                
+                Claims claims = Jwts.parser()
+                        .verifyWith(publicKey)
+                        .build()
+                        .parseSignedClaims(request.getIdToken())
+                        .getPayload();
+                
+                if (!"https://appleid.apple.com".equals(claims.getIssuer())) {
+                    throw new BusinessException("Invalid Apple issuer", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                }
+                if (appleClientId != null && !claims.getAudience().contains(appleClientId)) {
+                    throw new BusinessException("Invalid Apple audience", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                }
+                
+                email = claims.get("email", String.class);
+            } catch (Exception e) {
+                throw new BusinessException("Apple verification failed: " + e.getMessage(), HttpStatus.UNAUTHORIZED, "SOCIAL_AUTH_FAILED");
+            }
+        } else {
+            throw new BusinessException("Unsupported social provider: " + provider, HttpStatus.BAD_REQUEST, "UNSUPPORTED_PROVIDER");
+        }
+
+        if (email == null || email.trim().isEmpty()) {
+            throw new BusinessException("Email address is required from social provider", HttpStatus.BAD_REQUEST, "MISSING_EMAIL");
+        }
+
+        final String finalEmail = email;
+        final String finalFullName = (fullName != null && !fullName.trim().isEmpty()) ? fullName : email.split("@")[0];
+
+        User user = userRepository.findByEmailAndDeletedAtIsNull(finalEmail)
+                .orElseGet(() -> {
+                    String phone = request.getPhoneNumber();
+                    if (phone == null || phone.trim().isEmpty()) {
+                        throw new BusinessException("Phone number is required for first-time registration", HttpStatus.BAD_REQUEST, "PHONE_REQUIRED");
+                    }
+                    if (userRepository.existsByPhoneNumber(phone)) {
+                        throw new BusinessException("Phone number already registered", HttpStatus.CONFLICT, "PHONE_EXISTS");
+                    }
+                    if (!SELF_REGISTRABLE_ROLES.contains(request.getRole())) {
+                        throw new BusinessException("Role not allowed", HttpStatus.BAD_REQUEST, "ROLE_NOT_ALLOWED");
+                    }
+
+                    User newUser = User.builder()
+                            .phoneNumber(phone)
+                            .email(finalEmail)
+                            .fullName(finalFullName)
+                            .role(request.getRole())
+                            .isVerified(true)
+                            .isActive(true)
+                            .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
+                            .build();
+
+                    User saved = userRepository.save(newUser);
+                    auditLogger.log(AuditAction.CREATE, "USER", saved.getId(), null, request.getRole().name());
+                    return saved;
+                });
+
+        if (!user.getIsActive()) {
+            throw new BusinessException("Account is suspended", HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED");
+        }
+
+        return buildTokenResponse(new UserDetailsImpl(user), user);
     }
 
     private boolean isDevProfile() {
