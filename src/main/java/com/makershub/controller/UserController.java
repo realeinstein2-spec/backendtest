@@ -1,6 +1,7 @@
 package com.makershub.controller;
 
 import com.makershub.dto.request.FactoryRequest;
+import com.makershub.dto.request.UserRequest;
 import com.makershub.dto.response.AuthResponse;
 import com.makershub.service.UserService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -35,5 +36,11 @@ public class UserController {
     @PreAuthorize("hasRole('FACTORY_OWNER')")
     public ResponseEntity<AuthResponse.UserSummaryResponse> updateFactoryProfile(@Valid @RequestBody FactoryRequest.CreateFactoryProfileRequest request) {
         return ResponseEntity.ok(userService.updateFactoryProfile(request));
+    }
+
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<AuthResponse.UserSummaryResponse> updateProfile(@Valid @RequestBody UserRequest.UpdateProfileRequest request) {
+        return ResponseEntity.ok(userService.updateProfile(request));
     }
 }

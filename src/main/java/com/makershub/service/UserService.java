@@ -1,6 +1,7 @@
 package com.makershub.service;
 
 import com.makershub.dto.request.FactoryRequest;
+import com.makershub.dto.request.UserRequest;
 import com.makershub.dto.response.AuthResponse;
 import com.makershub.entity.Factory;
 import com.makershub.entity.User;
@@ -68,6 +69,18 @@ public class UserService {
                 .build();
         Factory saved = factoryRepository.save(factory);
         auditLogger.log(AuditAction.CREATE, "FACTORY", saved.getId(), null, null);
+
+        // Update user profile fields if provided
+        boolean userUpdated = false;
+        if (request.getEmail() != null) { user.setEmail(request.getEmail()); userUpdated = true; }
+        if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
+        if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
+        if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
+        if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
+        if (userUpdated) {
+            user = userRepository.save(user);
+        }
+
         return toSummary(user);
     }
 
@@ -95,7 +108,42 @@ public class UserService {
 
         factoryRepository.save(factory);
         auditLogger.log(AuditAction.UPDATE, "FACTORY", factory.getId(), null, null);
+
+        // Update user profile fields if provided
+        boolean userUpdated = false;
+        if (request.getEmail() != null) { user.setEmail(request.getEmail()); userUpdated = true; }
+        if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
+        if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
+        if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
+        if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
+        if (userUpdated) {
+            user = userRepository.save(user);
+        }
+
         return toSummary(user);
+    }
+
+    @Transactional
+    public AuthResponse.UserSummaryResponse updateProfile(UserRequest.UpdateProfileRequest request) {
+        User user = getAuthenticatedUser();
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+        }
+        if (request.getEmail() != null) {
+            user.setEmail(request.getEmail());
+        }
+        if (request.getRegion() != null) {
+            user.setRegion(request.getRegion());
+        }
+        if (request.getTown() != null) {
+            user.setTown(request.getTown());
+        }
+        if (request.getProfileImageUrl() != null) {
+            user.setProfileImageUrl(request.getProfileImageUrl());
+        }
+        User saved = userRepository.save(user);
+        auditLogger.log(AuditAction.UPDATE, "USER", saved.getId(), null, null);
+        return toSummary(saved);
     }
 
     private User getAuthenticatedUser() {

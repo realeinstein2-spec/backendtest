@@ -34,6 +34,21 @@ public final class FactoryRequest {
 
         @Size(max = 500)
         private String address;
+
+        @Size(max = 255)
+        private String email;
+
+        @Size(max = 100)
+        private String region;
+
+        @Size(max = 100)
+        private String town;
+
+        @Size(max = 500)
+        private String profileImageUrl;
+
+        @Size(max = 200)
+        private String fullName;
     }
 
     @Data
