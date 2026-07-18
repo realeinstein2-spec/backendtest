@@ -78,7 +78,7 @@ public class UserService {
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
         if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
         if (userUpdated) {
-            user = userRepository.save(user);
+            userRepository.save(user);
         }
 
         return toSummary(user);
@@ -117,7 +117,7 @@ public class UserService {
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
         if (request.getFullName() != null && !request.getFullName().isBlank()) { user.setFullName(request.getFullName()); userUpdated = true; }
         if (userUpdated) {
-            user = userRepository.save(user);
+            userRepository.save(user);
         }
 
         return toSummary(user);
