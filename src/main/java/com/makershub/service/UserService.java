@@ -157,8 +157,14 @@ public class UserService {
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .isVerified(user.getIsVerified())
+                .email(user.getEmail())
+                .ghanaCardNumber(user.getGhanaCardNumber())
                 .region(user.getRegion())
+                .town(user.getTown())
                 .profileImageUrl(user.getProfileImageUrl())
+                .lastActiveAt(user.getLastActiveAt())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
                 .build();
     }
 }

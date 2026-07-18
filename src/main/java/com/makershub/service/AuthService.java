@@ -105,15 +105,7 @@ public class AuthService {
         // In dev profile only, otpCode is returned for testing convenience.
         String responseOtp = isDevProfile() ? otpCode : null;
 
-        return AuthResponse.UserSummaryResponse.builder()
-                .id(saved.getId())
-                .phoneNumber(saved.getPhoneNumber())
-                .fullName(saved.getFullName())
-                .role(saved.getRole())
-                .isVerified(saved.getIsVerified())
-                .region(saved.getRegion())
-                .otpCode(responseOtp)
-                .build();
+        return mapToSummary(saved, responseOtp);
     }
 
     // ──────────────────────────────── LOGIN ──────────────────────────────────
@@ -254,15 +246,7 @@ public class AuthService {
     }
 
     private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails, User user) {
-        AuthResponse.UserSummaryResponse userSummary = AuthResponse.UserSummaryResponse.builder()
-                .id(user.getId())
-                .phoneNumber(user.getPhoneNumber())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .isVerified(user.getIsVerified())
-                .region(user.getRegion())
-                .profileImageUrl(user.getProfileImageUrl())
-                .build();
+        AuthResponse.UserSummaryResponse userSummary = mapToSummary(user, null);
 
         return AuthResponse.TokenResponse.builder()
                 .accessToken(jwtUtil.generateAccessToken(userDetails))
@@ -271,6 +255,25 @@ public class AuthService {
                 .refreshTokenExpiry(jwtUtil.getRefreshExpiry())
                 .tokenType("Bearer")
                 .user(userSummary)
+                .build();
+    }
+
+    private AuthResponse.UserSummaryResponse mapToSummary(User user, String otpCode) {
+        return AuthResponse.UserSummaryResponse.builder()
+                .id(user.getId())
+                .phoneNumber(user.getPhoneNumber())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .isVerified(user.getIsVerified())
+                .email(user.getEmail())
+                .ghanaCardNumber(user.getGhanaCardNumber())
+                .region(user.getRegion())
+                .town(user.getTown())
+                .profileImageUrl(user.getProfileImageUrl())
+                .lastActiveAt(user.getLastActiveAt())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .otpCode(otpCode)
                 .build();
     }
 

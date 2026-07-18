@@ -51,8 +51,14 @@ public final class AuthResponse {
         private String fullName;
         private UserRole role;
         private Boolean isVerified;
+        private String email;
+        private String ghanaCardNumber;
         private String region;
+        private String town;
         private String profileImageUrl;
+        private Instant lastActiveAt;
+        private Instant createdAt;
+        private Instant updatedAt;
         /** Only populated in dev profile for Swagger testing convenience. Null in production. */
         private String otpCode;
     }
