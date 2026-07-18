@@ -1,5 +1,6 @@
 package com.makershub.controller;
 
+import com.makershub.dto.response.FileResponse;
 import com.makershub.exception.BusinessException;
 import com.makershub.util.CloudinaryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/files")
@@ -28,13 +28,13 @@ public class FileController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload a file to Cloudinary and get the secure URL")
-    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<FileResponse.UploadResponse> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             throw new BusinessException("Uploaded file cannot be empty", HttpStatus.BAD_REQUEST, "EMPTY_FILE");
         }
         try {
             String url = cloudinaryService.upload(file);
-            return ResponseEntity.ok(Map.of("url", url));
+            return ResponseEntity.ok(FileResponse.UploadResponse.builder().url(url).build());
         } catch (IllegalStateException ex) {
             throw new BusinessException("Cloudinary is not configured. Please set Cloudinary environment variables.", 
                     HttpStatus.BAD_REQUEST, "CLOUDINARY_NOT_CONFIGURED");
