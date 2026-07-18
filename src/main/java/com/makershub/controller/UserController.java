@@ -30,4 +30,10 @@ public class UserController {
     public ResponseEntity<AuthResponse.UserSummaryResponse> createFactoryProfile(@Valid @RequestBody FactoryRequest.CreateFactoryProfileRequest request) {
         return ResponseEntity.ok(userService.createFactoryProfile(request));
     }
+
+    @PutMapping("/factory-profile")
+    @PreAuthorize("hasRole('FACTORY_OWNER')")
+    public ResponseEntity<AuthResponse.UserSummaryResponse> updateFactoryProfile(@Valid @RequestBody FactoryRequest.CreateFactoryProfileRequest request) {
+        return ResponseEntity.ok(userService.updateFactoryProfile(request));
+    }
 }

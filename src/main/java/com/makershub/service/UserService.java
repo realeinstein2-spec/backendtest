@@ -71,6 +71,33 @@ public class UserService {
         return toSummary(user);
     }
 
+    @Transactional
+    public AuthResponse.UserSummaryResponse updateFactoryProfile(FactoryRequest.CreateFactoryProfileRequest request) {
+        User user = getAuthenticatedUser();
+        Factory factory = factoryRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Factory", "User ID: " + user.getId()));
+
+        factory.setCompanyName(request.getCompanyName());
+        factory.setDescription(request.getDescription());
+        factory.setSectorTags(request.getSectorTags());
+        factory.setMachineryList(request.getMachineryList());
+        factory.setMinOrderQuantity(request.getMinOrderQuantity());
+        factory.setMaxOrderQuantity(request.getMaxOrderQuantity());
+        factory.setAddress(request.getAddress());
+
+        if (request.getLatitude() != null && request.getLongitude() != null) {
+            Point location = geometryFactory.createPoint(new Coordinate(request.getLongitude(), request.getLatitude()));
+            location.setSRID(4326);
+            factory.setGpsCoordinates(location);
+        } else {
+            factory.setGpsCoordinates(null);
+        }
+
+        factoryRepository.save(factory);
+        auditLogger.log(AuditAction.UPDATE, "FACTORY", factory.getId(), null, null);
+        return toSummary(user);
+    }
+
     private User getAuthenticatedUser() {
         UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findByIdAndDeletedAtIsNull(principal.getId())
