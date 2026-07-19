@@ -51,6 +51,7 @@ public final class AuthResponse {
         private String fullName;
         private UserRole role;
         private Boolean isVerified;
+        private Boolean isActive;
         private String email;
         private String ghanaCardNumber;
         private String region;

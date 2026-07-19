@@ -165,6 +165,7 @@ public class UserService {
                 .lastActiveAt(user.getLastActiveAt())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .isActive(user.getIsActive())
                 .build();
     }
 }

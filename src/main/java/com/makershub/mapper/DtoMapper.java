@@ -20,6 +20,11 @@ public interface DtoMapper {
     @Mapping(target = "factoryId", source = "factory.id")
     @Mapping(target = "factoryName", source = "factory.companyName")
     @Mapping(target = "factorySectorTags", source = "factory.sectorTags")
+    @Mapping(target = "factoryLogoUrl", source = "factory.user.profileImageUrl")
+    @Mapping(target = "factoryRating", source = "factory.user.ratingAvg")
+    @Mapping(target = "factoryLatitude", source = "factory.latitude")
+    @Mapping(target = "factoryLongitude", source = "factory.longitude")
+    @Mapping(target = "factoryAddress", source = "factory.address")
     BidResponse.BidDetailResponse toBidResponse(Bid bid);
 
     @Mapping(target = "jobId", source = "jobListing.id")

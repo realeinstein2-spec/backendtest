@@ -274,6 +274,7 @@ public class AuthService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .otpCode(otpCode)
+                .isActive(user.getIsActive())
                 .build();
     }
 

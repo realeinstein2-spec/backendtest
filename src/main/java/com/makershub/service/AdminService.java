@@ -109,4 +109,9 @@ public class AdminService {
         java.time.Instant threshold = java.time.Instant.now().minus(java.time.Duration.ofMinutes(activeMinutesWindow));
         return userRepository.findByLastActiveAtAfterAndDeletedAtIsNullOrderByLastActiveAtDesc(threshold, pageable);
     }
+
+    @Transactional(readOnly = true)
+    public Page<User> getUsersList(com.makershub.enums.UserRole role, Boolean isActive, String search, Pageable pageable) {
+        return userRepository.findAllForAdmin(role, isActive, search, pageable);
+    }
 }

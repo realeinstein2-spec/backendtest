@@ -22,6 +22,11 @@ public final class BidResponse {
         private UUID factoryId;
         private String factoryName;
         private List<String> factorySectorTags;
+        private String factoryLogoUrl;
+        private Double factoryRating;
+        private Double factoryLatitude;
+        private Double factoryLongitude;
+        private String factoryAddress;
         private BigDecimal pricePerUnitGhs;
         private BigDecimal totalPriceGhs;
         private Integer productionDays;

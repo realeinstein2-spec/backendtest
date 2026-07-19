@@ -67,4 +67,21 @@ public class AdminController {
                 .totalPages(mapped.getTotalPages())
                 .build());
     }
+
+    @GetMapping("/users")
+    public ResponseEntity<ApiResponse.PagedResponse<com.makershub.dto.response.AuthResponse.UserSummaryResponse>> getUsers(
+            @RequestParam(required = false) com.makershub.enums.UserRole role,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20) Pageable pageable) {
+        Page<com.makershub.entity.User> page = adminService.getUsersList(role, isActive, search, pageable);
+        Page<com.makershub.dto.response.AuthResponse.UserSummaryResponse> mapped = page.map(mapper::toUserSummary);
+        return ResponseEntity.ok(ApiResponse.PagedResponse.<com.makershub.dto.response.AuthResponse.UserSummaryResponse>builder()
+                .content(mapped.getContent())
+                .page(mapped.getNumber())
+                .size(mapped.getSize())
+                .totalElements(mapped.getTotalElements())
+                .totalPages(mapped.getTotalPages())
+                .build());
+    }
 }
