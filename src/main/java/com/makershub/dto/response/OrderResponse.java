@@ -26,6 +26,8 @@ public final class OrderResponse {
         private BigDecimal platformFeeGhs;
         private BigDecimal factoryPayoutGhs;
         private OrderStatus status;
+        private Integer currentProgressPercentage;
+        private String currentProductionStage;
         private Instant qualityCheckDeadline;
         private Instant deliveredAt;
         private Instant completedAt;

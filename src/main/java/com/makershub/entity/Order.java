@@ -61,6 +61,14 @@ public class Order {
     @Builder.Default
     private OrderStatus status = OrderStatus.PAYMENT_PENDING;
 
+    @Column(name = "current_progress_percentage")
+    @Builder.Default
+    private Integer currentProgressPercentage = 0;
+
+    @Column(name = "current_production_stage")
+    @Builder.Default
+    private String currentProductionStage = "Payment Pending";
+
     @Column(name = "quality_check_deadline")
     private Instant qualityCheckDeadline;
 

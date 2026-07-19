@@ -46,6 +46,18 @@ public final class FactoryRequest {
 
         @Size(max = 500)
         private String profileImageUrl;
+
+        @Size(max = 50)
+        private String payoutAccountType;
+
+        @Size(max = 255)
+        private String payoutAccountName;
+
+        @Size(max = 100)
+        private String payoutAccountNumber;
+
+        @Size(max = 50)
+        private String payoutBankCode;
     }
 
     @Data

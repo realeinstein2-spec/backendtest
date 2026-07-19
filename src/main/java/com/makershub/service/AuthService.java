@@ -259,6 +259,16 @@ public class AuthService {
     }
 
     private AuthResponse.UserSummaryResponse mapToSummary(User user, String otpCode) {
+        String payoutType = null;
+        String payoutName = null;
+        String payoutNumber = null;
+        String payoutBank = null;
+        if (user.getFactory() != null) {
+            payoutType = user.getFactory().getPayoutAccountType();
+            payoutName = user.getFactory().getPayoutAccountName();
+            payoutNumber = user.getFactory().getPayoutAccountNumber();
+            payoutBank = user.getFactory().getPayoutBankCode();
+        }
         return AuthResponse.UserSummaryResponse.builder()
                 .id(user.getId())
                 .phoneNumber(user.getPhoneNumber())
@@ -275,6 +285,10 @@ public class AuthService {
                 .updatedAt(user.getUpdatedAt())
                 .otpCode(otpCode)
                 .isActive(user.getIsActive())
+                .payoutAccountType(payoutType)
+                .payoutAccountName(payoutName)
+                .payoutAccountNumber(payoutNumber)
+                .payoutBankCode(payoutBank)
                 .build();
     }
 

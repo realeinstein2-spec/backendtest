@@ -55,6 +55,18 @@ public class Factory {
     @Column(name = "machinery_list", columnDefinition = "jsonb")
     private String machineryList;
 
+    @Column(name = "payout_account_type", length = 50)
+    private String payoutAccountType;
+
+    @Column(name = "payout_account_name", length = 255)
+    private String payoutAccountName;
+
+    @Column(name = "payout_account_number", length = 100)
+    private String payoutAccountNumber;
+
+    @Column(name = "payout_bank_code", length = 50)
+    private String payoutBankCode;
+
     @Column(name = "min_order_quantity")
     private Integer minOrderQuantity;
 

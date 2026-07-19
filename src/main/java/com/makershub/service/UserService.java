@@ -66,6 +66,10 @@ public class UserService {
                 .address(request.getAddress())
                 .verificationStatus(VerificationStatus.PENDING)
                 .isFeatured(false)
+                .payoutAccountType(request.getPayoutAccountType())
+                .payoutAccountName(request.getPayoutAccountName())
+                .payoutAccountNumber(request.getPayoutAccountNumber())
+                .payoutBankCode(request.getPayoutBankCode())
                 .build();
         Factory saved = factoryRepository.save(factory);
         auditLogger.log(AuditAction.CREATE, "FACTORY", saved.getId(), null, null);
@@ -96,6 +100,10 @@ public class UserService {
         factory.setMinOrderQuantity(request.getMinOrderQuantity());
         factory.setMaxOrderQuantity(request.getMaxOrderQuantity());
         factory.setAddress(request.getAddress());
+        factory.setPayoutAccountType(request.getPayoutAccountType());
+        factory.setPayoutAccountName(request.getPayoutAccountName());
+        factory.setPayoutAccountNumber(request.getPayoutAccountNumber());
+        factory.setPayoutBankCode(request.getPayoutBankCode());
 
         if (request.getLatitude() != null && request.getLongitude() != null) {
             Point location = geometryFactory.createPoint(new Coordinate(request.getLongitude(), request.getLatitude()));
@@ -151,6 +159,16 @@ public class UserService {
     }
 
     private AuthResponse.UserSummaryResponse toSummary(User user) {
+        String payoutType = null;
+        String payoutName = null;
+        String payoutNumber = null;
+        String payoutBank = null;
+        if (user.getFactory() != null) {
+            payoutType = user.getFactory().getPayoutAccountType();
+            payoutName = user.getFactory().getPayoutAccountName();
+            payoutNumber = user.getFactory().getPayoutAccountNumber();
+            payoutBank = user.getFactory().getPayoutBankCode();
+        }
         return AuthResponse.UserSummaryResponse.builder()
                 .id(user.getId())
                 .phoneNumber(user.getPhoneNumber())
@@ -166,6 +184,10 @@ public class UserService {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .isActive(user.getIsActive())
+                .payoutAccountType(payoutType)
+                .payoutAccountName(payoutName)
+                .payoutAccountNumber(payoutNumber)
+                .payoutBankCode(payoutBank)
                 .build();
     }
 }

@@ -1,10 +1,13 @@
 package com.makershub.service;
 
+import com.makershub.dto.request.OrderProgressRequest;
 import com.makershub.dto.request.OrderRequest;
+import com.makershub.dto.response.OrderProgressResponse;
 import com.makershub.dto.response.OrderResponse;
 import com.makershub.entity.Bid;
 import com.makershub.entity.EscrowTransaction;
 import com.makershub.entity.Order;
+import com.makershub.entity.OrderProgressLog;
 import com.makershub.entity.User;
 import com.makershub.enums.*;
 import com.makershub.exception.BusinessException;
@@ -17,8 +20,12 @@ import com.makershub.notification.NotificationService;
 import com.makershub.repository.BidRepository;
 import com.makershub.repository.EscrowTransactionRepository;
 import com.makershub.repository.JobListingRepository;
+import com.makershub.repository.OrderProgressLogRepository;
 import com.makershub.repository.OrderRepository;
 import com.makershub.repository.UserRepository;
+
+import java.util.List;
+import java.util.stream.Collectors;
 import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +57,7 @@ public class OrderService {
     private final JobListingRepository jobRepository;
     private final EscrowTransactionRepository escrowRepository;
     private final UserRepository userRepository;
+    private final OrderProgressLogRepository orderProgressLogRepository;
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
@@ -265,6 +273,74 @@ public class OrderService {
                 log.error("Failed to auto-complete order {}: {}", order.getId(), e.getMessage(), e);
             }
         }
+    }
+
+    @Transactional
+    public OrderProgressResponse addProgress(UUID orderId, OrderProgressRequest request) {
+        User factoryUser = getAuthenticatedUser();
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId.toString()));
+
+        if (!order.getFactory().getId().equals(factoryUser.getId())) {
+            throw new UnauthorizedException("Only the assigned factory can add progress updates");
+        }
+        if (order.getStatus() != OrderStatus.IN_PRODUCTION) {
+            throw new BusinessException("Can only update progress for orders in production", HttpStatus.CONFLICT, "ORDER_NOT_IN_PRODUCTION");
+        }
+        if (request.getPercentage() < order.getCurrentProgressPercentage()) {
+            throw new BusinessException("Progress percentage cannot go backwards", HttpStatus.BAD_REQUEST, "INVALID_PROGRESS");
+        }
+
+        order.setCurrentProgressPercentage(request.getPercentage());
+        order.setCurrentProductionStage(request.getStageName());
+        orderRepository.save(order);
+
+        OrderProgressLog logEntry = OrderProgressLog.builder()
+                .order(order)
+                .percentage(request.getPercentage())
+                .stageName(request.getStageName())
+                .notes(request.getNotes())
+                .photoUrl(request.getPhotoUrl())
+                .build();
+        OrderProgressLog savedLog = orderProgressLogRepository.save(logEntry);
+
+        auditLogger.log(AuditAction.UPDATE, "ORDER_PROGRESS", order.getId(), null, "Progress: " + request.getPercentage() + "%");
+
+        return OrderProgressResponse.builder()
+                .id(savedLog.getId())
+                .orderId(order.getId())
+                .percentage(savedLog.getPercentage())
+                .stageName(savedLog.getStageName())
+                .notes(savedLog.getNotes())
+                .photoUrl(savedLog.getPhotoUrl())
+                .createdAt(savedLog.getCreatedAt())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderProgressResponse> getProgressHistory(UUID orderId) {
+        User user = getAuthenticatedUser();
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId.toString()));
+
+        // Authorize: Only the involved SME, Factory, or Admin can view
+        if (!order.getSme().getId().equals(user.getId()) 
+                && !order.getFactory().getId().equals(user.getId()) 
+                && user.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("You do not have permission to view progress for this order");
+        }
+
+        return orderProgressLogRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(log -> OrderProgressResponse.builder()
+                        .id(log.getId())
+                        .orderId(order.getId())
+                        .percentage(log.getPercentage())
+                        .stageName(log.getStageName())
+                        .notes(log.getNotes())
+                        .photoUrl(log.getPhotoUrl())
+                        .createdAt(log.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private User getAuthenticatedUser() {

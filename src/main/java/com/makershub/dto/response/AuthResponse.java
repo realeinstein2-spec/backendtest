@@ -60,6 +60,10 @@ public final class AuthResponse {
         private Instant lastActiveAt;
         private Instant createdAt;
         private Instant updatedAt;
+        private String payoutAccountType;
+        private String payoutAccountName;
+        private String payoutAccountNumber;
+        private String payoutBankCode;
         /** Only populated in dev profile for Swagger testing convenience. Null in production. */
         private String otpCode;
     }

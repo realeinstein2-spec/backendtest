@@ -1,8 +1,11 @@
 package com.makershub.controller;
 
+import com.makershub.dto.request.OrderProgressRequest;
 import com.makershub.dto.request.OrderRequest;
+import com.makershub.dto.response.OrderProgressResponse;
 import com.makershub.dto.response.OrderResponse;
 import com.makershub.service.OrderService;
+import java.util.List;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -56,6 +59,20 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('SME_OWNER', 'ENTERPRISE')")
     public ResponseEntity<OrderResponse.OrderDetailResponse> cancelOrder(@PathVariable UUID id) {
         return ResponseEntity.ok(orderService.cancelOrder(id));
+    }
+
+    @PostMapping("/{id}/progress")
+    @PreAuthorize("hasRole('FACTORY_OWNER')")
+    public ResponseEntity<OrderProgressResponse> addProgress(
+            @PathVariable UUID id,
+            @Valid @RequestBody OrderProgressRequest request) {
+        return ResponseEntity.ok(orderService.addProgress(id, request));
+    }
+
+    @GetMapping("/{id}/progress")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<OrderProgressResponse>> getProgressHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(orderService.getProgressHistory(id));
     }
 }
 
