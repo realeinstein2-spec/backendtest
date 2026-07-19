@@ -88,7 +88,7 @@ public class PaymentService {
                 .amountGhs(order.getAgreedAmountGhs())
                 .feeAmountGhs(order.getPlatformFeeGhs())
                 .factoryPayoutGhs(order.getFactoryPayoutGhs())
-                .paymentMethod(request.getPaymentMethod())
+                .paymentMethod(null)
                 .escrowStatus(EscrowStatus.PENDING)
                 .build();
         escrowRepository.save(escrow);
@@ -174,6 +174,27 @@ public class PaymentService {
         escrow.setPaidAt(Instant.now());
         String authCode = data.path("authorization").path("authorization_code").asText(null);
         escrow.setPaystackAuthorizationCode(authCode);
+
+        String channel = data.path("channel").asText();
+        PaymentMethod method = null;
+        if ("card".equalsIgnoreCase(channel)) {
+            method = PaymentMethod.CARD;
+        } else if ("mobile_money".equalsIgnoreCase(channel)) {
+            String brand = data.path("authorization").path("brand").asText("").toLowerCase();
+            if (brand.contains("mtn")) {
+                method = PaymentMethod.MTN_MOMO;
+            } else if (brand.contains("vodafone") || brand.contains("telecel")) {
+                method = PaymentMethod.TELECEL;
+            } else if (brand.contains("airtel") || brand.contains("tigo")) {
+                method = PaymentMethod.AIRTELTIGO;
+            } else {
+                method = PaymentMethod.MTN_MOMO; // Default MoMo fallback
+            }
+        } else if ("bank_transfer".equalsIgnoreCase(channel) || "bank".equalsIgnoreCase(channel)) {
+            method = PaymentMethod.BANK_TRANSFER;
+        }
+        escrow.setPaymentMethod(method);
+
         escrowRepository.save(escrow);
 
         Order order = escrow.getOrder();

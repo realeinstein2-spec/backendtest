@@ -13,8 +13,5 @@ public final class PaymentRequest {
     public static class InitiatePaymentRequest {
         @NotBlank
         private String orderId;
-
-        @NotNull
-        private PaymentMethod paymentMethod;
     }
 }
