@@ -29,6 +29,7 @@ public final class JobResponse {
         private BigDecimal budgetMaxGhs;
         private LocalDate deadline;
         private List<String> attachmentUrls;
+        private List<String> productImageUrls;
         private String deliveryAddress;
         private JobStatus status;
         private Instant createdAt;

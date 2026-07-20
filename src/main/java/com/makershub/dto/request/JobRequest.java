@@ -46,5 +46,7 @@ public final class JobRequest {
         private String deliveryAddress;
 
         private List<@Size(max = 500) String> attachmentUrls;
+
+        private List<@Size(max = 500) String> productImageUrls;
     }
 }

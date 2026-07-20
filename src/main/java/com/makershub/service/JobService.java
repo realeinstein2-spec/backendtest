@@ -53,6 +53,11 @@ public class JobService {
             throw new com.makershub.exception.BusinessException("Job deadline must be in the future",
                     org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_DEADLINE");
         }
+        List<String> images = request.getAttachmentUrls();
+        if (images == null || images.isEmpty()) {
+            images = request.getProductImageUrls();
+        }
+
         JobListing job = JobListing.builder()
                 .sme(sme)
                 .title(request.getTitle())
@@ -64,7 +69,7 @@ public class JobService {
                 .budgetMaxGhs(request.getBudgetMaxGhs())
                 .deadline(request.getDeadline())
                 .deliveryAddress(request.getDeliveryAddress())
-                .attachmentUrls(request.getAttachmentUrls())
+                .attachmentUrls(images)
                 .status(JobStatus.OPEN)
                 .build();
         JobListing saved = jobRepository.save(job);

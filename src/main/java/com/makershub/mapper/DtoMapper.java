@@ -14,6 +14,7 @@ public interface DtoMapper {
 
     @Mapping(target = "smeId", source = "sme.id")
     @Mapping(target = "smeName", source = "sme.fullName")
+    @Mapping(target = "productImageUrls", source = "attachmentUrls")
     JobResponse.JobDetailResponse toJobResponse(JobListing job);
 
     @Mapping(target = "jobId", source = "jobListing.id")
