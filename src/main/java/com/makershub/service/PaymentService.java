@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.makershub.dto.request.PaymentRequest;
 import com.makershub.entity.EscrowTransaction;
 import com.makershub.entity.Order;
+import com.makershub.entity.PaymentTransaction;
 import com.makershub.entity.User;
 import com.makershub.enums.*;
 import com.makershub.exception.BusinessException;
@@ -13,6 +14,7 @@ import com.makershub.exception.UnauthorizedException;
 import com.makershub.audit.AuditLogger;
 import com.makershub.repository.EscrowTransactionRepository;
 import com.makershub.repository.OrderRepository;
+import com.makershub.repository.PaymentTransactionRepository;
 import com.makershub.repository.UserRepository;
 import com.makershub.security.UserDetailsImpl;
 import com.makershub.util.PaystackSignatureVerifier;
@@ -39,6 +41,7 @@ public class PaymentService {
 
     private final OrderRepository orderRepository;
     private final EscrowTransactionRepository escrowRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
     private final UserRepository userRepository;
     private final AuditLogger auditLogger;
     private final PaystackSignatureVerifier signatureVerifier;
@@ -71,51 +74,181 @@ public class PaymentService {
             throw new BusinessException("Order is not awaiting payment", HttpStatus.CONFLICT, "ORDER_NOT_AWAITING_PAYMENT");
         }
 
-        // C-14: Prevent duplicate escrow records if initiatePayment is called more than once
-        if (escrowRepository.findByOrderId(orderId).isPresent()) {
-            log.warn("Payment already initiated for order {}. Returning existing reference.", orderId);
-            EscrowTransaction existing = escrowRepository.findByOrderId(orderId).get();
-            return Map.of("reference", existing.getPaystackReference(),
-                    "authorization_url", "https://paystack.com/pay/" + existing.getPaystackReference());
+        if (paystackSecret == null || paystackSecret.isBlank()) {
+            throw new BusinessException("Paystack secret key configuration is missing", HttpStatus.INTERNAL_SERVER_ERROR, "MISSING_PAYSTACK_SECRET");
         }
 
-        String reference = "MKH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
-        BigDecimal amountKobo = order.getAgreedAmountGhs().multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP);
+        // Reuse duplicate pending transaction if valid authorizationUrl is present
+        Optional<PaymentTransaction> existingOpt = paymentTransactionRepository.findByOrderIdAndStatus(orderId, "PENDING");
+        if (existingOpt.isPresent()) {
+            PaymentTransaction tx = existingOpt.get();
+            return Map.of("reference", tx.getReference(), "authorization_url", tx.getAuthorizationUrl());
+        }
 
-        EscrowTransaction escrow = EscrowTransaction.builder()
-                .order(order)
-                .paystackReference(reference)
-                .amountGhs(order.getAgreedAmountGhs())
-                .feeAmountGhs(order.getPlatformFeeGhs())
-                .factoryPayoutGhs(order.getFactoryPayoutGhs())
-                .paymentMethod(null)
-                .escrowStatus(EscrowStatus.PENDING)
-                .build();
-        escrowRepository.save(escrow);
+        String reference = "mh_" + UUID.randomUUID().toString().replace("-", "").toLowerCase();
+        long amountPesewas = order.getAgreedAmountGhs().multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).longValue();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(paystackSecret);
         headers.setContentType(MediaType.APPLICATION_JSON);
         Map<String, Object> body = Map.of(
-                "email", sme.getEmail() != null ? sme.getEmail() : sme.getPhoneNumber() + "@makershub.gh",
-                "amount", amountKobo,
+                "email", sme.getEmail() != null ? sme.getEmail() : (sme.getPhoneNumber() + "@makershub.gh"),
+                "amount", amountPesewas,
+                "currency", "GHS",
                 "reference", reference,
                 "callback_url", paystackCallbackUrl,
-                "metadata", Map.of("order_id", orderId.toString(), "platform", "mobile")
+                "metadata", Map.of("orderId", orderId.toString(), "customerId", sme.getId().toString())
         );
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
-        if (paystackSecret.isBlank()) {
-            log.warn("Paystack secret not configured; returning simulated reference.");
-            return Map.of("reference", reference, "authorization_url", "https://paystack.com/pay/" + reference);
+        ResponseEntity<JsonNode> response;
+        try {
+            response = restTemplate.postForEntity(paystackBaseUrl + "/transaction/initialize", entity, JsonNode.class);
+        } catch (Exception ex) {
+            throw new BusinessException("Failed to initialize payment with Paystack: " + ex.getMessage(),
+                    HttpStatus.BAD_GATEWAY, "PAYSTACK_INIT_FAILED");
         }
-        ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                paystackBaseUrl + "/transaction/initialize", entity, JsonNode.class);
+
         if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            throw new BusinessException("Failed to initialize payment", HttpStatus.BAD_GATEWAY, "PAYSTACK_INIT_FAILED");
+            throw new BusinessException("Paystack returned failure status", HttpStatus.BAD_GATEWAY, "PAYSTACK_INIT_FAILED");
         }
-        String authUrl = response.getBody().path("data").path("authorization_url").asText();
+
+        JsonNode respBody = response.getBody();
+        if (!respBody.path("status").asBoolean()) {
+            throw new BusinessException("Paystack initialization failed: " + respBody.path("message").asText(),
+                    HttpStatus.BAD_GATEWAY, "PAYSTACK_INIT_FAILED");
+        }
+
+        String authUrl = respBody.path("data").path("authorization_url").asText("");
+        if (!authUrl.startsWith("https://checkout.paystack.com/")) {
+            throw new BusinessException("Paystack returned an invalid authorization URL", HttpStatus.BAD_GATEWAY, "INVALID_AUTH_URL");
+        }
+
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .reference(reference)
+                .orderId(orderId)
+                .customerId(sme.getId())
+                .amountPesewas(amountPesewas)
+                .currency("GHS")
+                .status("PENDING")
+                .authorizationUrl(authUrl)
+                .build();
+        paymentTransactionRepository.save(transaction);
+
         return Map.of("reference", reference, "authorization_url", authUrl);
+    }
+
+    @Transactional
+    public boolean verifyPayment(String reference) {
+        User user = getAuthenticatedUser();
+        PaymentTransaction tx = paymentTransactionRepository.findByReference(reference)
+                .orElseThrow(() -> new ResourceNotFoundException("PaymentTransaction", reference));
+
+        if (!tx.getCustomerId().equals(user.getId())) {
+            throw new UnauthorizedException("Transaction does not belong to user");
+        }
+
+        if ("PAID".equals(tx.getStatus())) {
+            return true;
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(paystackSecret);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<JsonNode> response;
+        try {
+            response = restTemplate.exchange(paystackBaseUrl + "/transaction/verify/" + reference,
+                    HttpMethod.GET, entity, JsonNode.class);
+        } catch (Exception ex) {
+            log.error("Failed to contact Paystack for transaction verification", ex);
+            return false;
+        }
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            return false;
+        }
+
+        JsonNode respBody = response.getBody();
+        if (!respBody.path("status").asBoolean()) {
+            return false;
+        }
+
+        JsonNode data = respBody.path("data");
+        if (!"success".equalsIgnoreCase(data.path("status").asText())) {
+            return false;
+        }
+        if (!reference.equals(data.path("reference").asText())) {
+            return false;
+        }
+        if (tx.getAmountPesewas() != data.path("amount").asLong()) {
+            return false;
+        }
+        if (!"GHS".equalsIgnoreCase(data.path("currency").asText())) {
+            return false;
+        }
+
+        markChargeSuccessful(tx, data);
+        return true;
+    }
+
+    @Transactional
+    public void markChargeSuccessful(PaymentTransaction transaction, JsonNode paystackData) {
+        PaymentTransaction locked = paymentTransactionRepository.findByReferenceForUpdate(transaction.getReference())
+                .orElseThrow(() -> new ResourceNotFoundException("PaymentTransaction", transaction.getReference()));
+
+        if ("PAID".equals(locked.getStatus())) {
+            return;
+        }
+
+        locked.setStatus("PAID");
+        locked.setPaystackTransactionId(paystackData.path("id").asText(""));
+        locked.setPaidAt(Instant.now());
+        paymentTransactionRepository.save(locked);
+
+        Order order = orderRepository.findById(locked.getOrderId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order", locked.getOrderId().toString()));
+        order.setStatus(OrderStatus.IN_ESCROW);
+        orderRepository.save(order);
+
+        // Keep escrow record generation idempotent
+        if (escrowRepository.findByOrderId(order.getId()).isEmpty()) {
+            BigDecimal amountGhs = BigDecimal.valueOf(locked.getAmountPesewas()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            BigDecimal platformFee = amountGhs.multiply(platformFeePercent).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal factoryPayout = amountGhs.subtract(platformFee);
+
+            String channel = paystackData.path("channel").asText();
+            PaymentMethod method = null;
+            if ("card".equalsIgnoreCase(channel)) {
+                method = PaymentMethod.CARD;
+            } else if ("mobile_money".equalsIgnoreCase(channel)) {
+                String brand = paystackData.path("authorization").path("brand").asText("").toLowerCase();
+                if (brand.contains("mtn")) {
+                    method = PaymentMethod.MTN_MOMO;
+                } else if (brand.contains("vodafone") || brand.contains("telecel")) {
+                    method = PaymentMethod.TELECEL;
+                } else if (brand.contains("airtel") || brand.contains("tigo")) {
+                    method = PaymentMethod.AIRTELTIGO;
+                } else {
+                    method = PaymentMethod.MTN_MOMO;
+                }
+            } else if ("bank_transfer".equalsIgnoreCase(channel) || "bank".equalsIgnoreCase(channel)) {
+                method = PaymentMethod.BANK_TRANSFER;
+            }
+
+            EscrowTransaction escrow = EscrowTransaction.builder()
+                    .order(order)
+                    .paystackReference(locked.getReference())
+                    .amountGhs(amountGhs)
+                    .feeAmountGhs(platformFee)
+                    .factoryPayoutGhs(factoryPayout)
+                    .paymentMethod(method)
+                    .escrowStatus(EscrowStatus.HELD)
+                    .paidAt(locked.getPaidAt())
+                    .build();
+            escrowRepository.save(escrow);
+            auditLogger.log(AuditAction.UPDATE, "ESCROW", escrow.getId(), EscrowStatus.PENDING.name(), EscrowStatus.HELD.name());
+        }
     }
 
     @Transactional
@@ -124,96 +257,29 @@ public class PaymentService {
             throw new BusinessException("Invalid webhook signature", HttpStatus.UNAUTHORIZED, "INVALID_SIGNATURE");
         }
         try {
-            // M-8: Use injected ObjectMapper bean
             JsonNode event = objectMapper.readTree(payload);
             String eventType = event.path("event").asText();
             JsonNode data = event.path("data");
             String reference = data.path("reference").asText();
+
             if ("charge.success".equals(eventType)) {
-                processSuccessfulCharge(reference, data);
-            } else if ("charge.failed".equals(eventType)) {
-                // M-10: Handle failed charges by marking escrow as pending-failed state
-                handleFailedCharge(reference);
-            } else if ("transfer.success".equals(eventType)) {
-                // M-9: Log transfer success and confirm payout audit trail
-                log.info("Paystack transfer.success received for reference: {}", reference);
-                escrowRepository.findByPaystackReference(reference).ifPresent(escrow -> {
-                    auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
-                            escrow.getEscrowStatus().name(), "PAYOUT_CONFIRMED");
-                });
+                PaymentTransaction tx = paymentTransactionRepository.findByReferenceForUpdate(reference)
+                        .orElseThrow(() -> new ResourceNotFoundException("PaymentTransaction", reference));
+
+                if (tx.getAmountPesewas() != data.path("amount").asLong()) {
+                    throw new BusinessException("Webhook amount mismatch", HttpStatus.BAD_REQUEST, "PAYMENT_AMOUNT_MISMATCH");
+                }
+                if (!"GHS".equalsIgnoreCase(data.path("currency").asText())) {
+                    throw new BusinessException("Webhook currency mismatch", HttpStatus.BAD_REQUEST, "PAYMENT_CURRENCY_MISMATCH");
+                }
+
+                markChargeSuccessful(tx, data);
             }
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new BusinessException("Webhook processing failed", HttpStatus.BAD_REQUEST, "WEBHOOK_ERROR");
         }
-    }
-
-    private void processSuccessfulCharge(String reference, JsonNode data) {
-        EscrowTransaction escrow = escrowRepository.findByPaystackReference(reference)
-                .orElseThrow(() -> new ResourceNotFoundException("EscrowTransaction", reference));
-
-        // Idempotency check
-        if (escrow.getEscrowStatus() == EscrowStatus.HELD || escrow.getEscrowStatus() == EscrowStatus.RELEASED) {
-            log.info("Paystack webhook reference {} already processed. Skipping.", reference);
-            return;
-        }
-
-        // Amount verification check
-        long actualAmountSubunits = data.path("amount").asLong();
-        long expectedAmountSubunits = escrow.getAmountGhs()
-                .multiply(BigDecimal.valueOf(100))
-                .setScale(0, RoundingMode.HALF_UP)
-                .longValue();
-
-        if (actualAmountSubunits != expectedAmountSubunits) {
-            log.error("Paystack webhook amount mismatch for reference {}. Expected {} subunits, got {}",
-                    reference, expectedAmountSubunits, actualAmountSubunits);
-            throw new BusinessException("Payment amount mismatch", HttpStatus.BAD_REQUEST, "PAYMENT_AMOUNT_MISMATCH");
-        }
-
-        escrow.setEscrowStatus(EscrowStatus.HELD);
-        escrow.setPaidAt(Instant.now());
-        String authCode = data.path("authorization").path("authorization_code").asText(null);
-        escrow.setPaystackAuthorizationCode(authCode);
-
-        String channel = data.path("channel").asText();
-        PaymentMethod method = null;
-        if ("card".equalsIgnoreCase(channel)) {
-            method = PaymentMethod.CARD;
-        } else if ("mobile_money".equalsIgnoreCase(channel)) {
-            String brand = data.path("authorization").path("brand").asText("").toLowerCase();
-            if (brand.contains("mtn")) {
-                method = PaymentMethod.MTN_MOMO;
-            } else if (brand.contains("vodafone") || brand.contains("telecel")) {
-                method = PaymentMethod.TELECEL;
-            } else if (brand.contains("airtel") || brand.contains("tigo")) {
-                method = PaymentMethod.AIRTELTIGO;
-            } else {
-                method = PaymentMethod.MTN_MOMO; // Default MoMo fallback
-            }
-        } else if ("bank_transfer".equalsIgnoreCase(channel) || "bank".equalsIgnoreCase(channel)) {
-            method = PaymentMethod.BANK_TRANSFER;
-        }
-        escrow.setPaymentMethod(method);
-
-        escrowRepository.save(escrow);
-
-        Order order = escrow.getOrder();
-        order.setStatus(OrderStatus.IN_ESCROW);
-        orderRepository.save(order);
-        // Fix: Use UPDATE action for a status change; ESCROW_RELEASE is reserved for actual release events
-        auditLogger.log(AuditAction.UPDATE, "ESCROW", escrow.getId(), EscrowStatus.PENDING.name(), EscrowStatus.HELD.name());
-    }
-
-    // M-10: Handle charge.failed — log warning and keep escrow in PENDING state (no FAILED status in enum)
-    private void handleFailedCharge(String reference) {
-        escrowRepository.findByPaystackReference(reference).ifPresent(escrow -> {
-            if (escrow.getEscrowStatus() == EscrowStatus.PENDING) {
-                // EscrowStatus.FAILED does not exist; log the failure for operator visibility
-                log.warn("Payment failed for reference {}. Escrow {} remains in PENDING state.", reference, escrow.getId());
-                auditLogger.log(AuditAction.ESCROW_RELEASE, "ESCROW", escrow.getId(),
-                        EscrowStatus.PENDING.name(), "CHARGE_FAILED");
-            }
-        });
     }
 
     private User getAuthenticatedUser() {
