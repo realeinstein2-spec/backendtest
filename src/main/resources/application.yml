@@ -38,7 +38,7 @@ makershub:
   jwt:
     # No default — startup WILL FAIL if JWT_SECRET is not set. Generate with: openssl rand -base64 64
     secret: ${JWT_SECRET}
-    access-expiry-ms: 900000
+    access-expiry-ms: 1800000
     refresh-expiry-ms: 2592000000
   google:
     client-id: ${GOOGLE_CLIENT_ID:}

@@ -20,7 +20,7 @@ public class JwtUtil {
     @Value("${makershub.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${makershub.jwt.access-expiry-ms:900000}")
+    @Value("${makershub.jwt.access-expiry-ms:1800000}")
     private long accessExpiryMs;
 
     @Value("${makershub.jwt.refresh-expiry-ms:2592000000}")
