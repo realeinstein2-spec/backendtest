@@ -98,9 +98,9 @@ class PaymentServiceTest {
         // Setup security context mock
         UserDetailsImpl principal = new UserDetailsImpl(testUser);
         Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(principal);
+        lenient().when(auth.getPrincipal()).thenReturn(principal);
         SecurityContext context = mock(SecurityContext.class);
-        when(context.getAuthentication()).thenReturn(auth);
+        lenient().when(context.getAuthentication()).thenReturn(auth);
         SecurityContextHolder.setContext(context);
 
         lenient().when(userRepository.findByIdAndDeletedAtIsNull(testUser.getId())).thenReturn(Optional.of(testUser));
