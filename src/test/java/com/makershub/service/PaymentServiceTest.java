@@ -96,7 +96,7 @@ class PaymentServiceTest {
         initRequest.setOrderId(testOrder.getId().toString());
 
         // Setup security context mock
-        UserDetailsImpl principal = new UserDetailsImpl(testUser.getId(), testUser.getPhoneNumber(), "hash", testUser.getRole());
+        UserDetailsImpl principal = new UserDetailsImpl(testUser);
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(principal);
         SecurityContext context = mock(SecurityContext.class);
