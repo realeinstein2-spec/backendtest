@@ -23,5 +23,8 @@ public final class UserRequest {
 
         @Size(max = 500)
         private String profileImageUrl;
+
+        @Size(max = 500)
+        private String coverImageUrl;
     }
 }

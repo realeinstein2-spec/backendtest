@@ -280,6 +280,7 @@ public class AuthService {
                 .region(user.getRegion())
                 .town(user.getTown())
                 .profileImageUrl(user.getProfileImageUrl())
+                .coverImageUrl(user.getCoverImageUrl())
                 .lastActiveAt(user.getLastActiveAt())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

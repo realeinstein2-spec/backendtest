@@ -57,6 +57,7 @@ public final class AuthResponse {
         private String region;
         private String town;
         private String profileImageUrl;
+        private String coverImageUrl;
         private Instant lastActiveAt;
         private Instant createdAt;
         private Instant updatedAt;

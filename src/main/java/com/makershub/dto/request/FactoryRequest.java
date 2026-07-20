@@ -47,6 +47,9 @@ public final class FactoryRequest {
         @Size(max = 500)
         private String profileImageUrl;
 
+        @Size(max = 500)
+        private String coverImageUrl;
+
         @Size(max = 50)
         private String payoutAccountType;
 

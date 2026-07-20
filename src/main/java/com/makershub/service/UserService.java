@@ -80,6 +80,7 @@ public class UserService {
         if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
         if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
+        if (request.getCoverImageUrl() != null) { user.setCoverImageUrl(request.getCoverImageUrl()); userUpdated = true; }
         if (userUpdated) {
             userRepository.save(user);
         }
@@ -122,6 +123,7 @@ public class UserService {
         if (request.getRegion() != null) { user.setRegion(request.getRegion()); userUpdated = true; }
         if (request.getTown() != null) { user.setTown(request.getTown()); userUpdated = true; }
         if (request.getProfileImageUrl() != null) { user.setProfileImageUrl(request.getProfileImageUrl()); userUpdated = true; }
+        if (request.getCoverImageUrl() != null) { user.setCoverImageUrl(request.getCoverImageUrl()); userUpdated = true; }
         if (userUpdated) {
             userRepository.save(user);
         }
@@ -146,6 +148,9 @@ public class UserService {
         }
         if (request.getProfileImageUrl() != null) {
             user.setProfileImageUrl(request.getProfileImageUrl());
+        }
+        if (request.getCoverImageUrl() != null) {
+            user.setCoverImageUrl(request.getCoverImageUrl());
         }
         User saved = userRepository.save(user);
         auditLogger.log(AuditAction.UPDATE, "USER", saved.getId(), null, null);
@@ -180,6 +185,7 @@ public class UserService {
                 .region(user.getRegion())
                 .town(user.getTown())
                 .profileImageUrl(user.getProfileImageUrl())
+                .coverImageUrl(user.getCoverImageUrl())
                 .lastActiveAt(user.getLastActiveAt())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
