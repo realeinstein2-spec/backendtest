@@ -65,6 +65,7 @@ public class AuthService {
     private final OtpVerificationRepository otpVerificationRepository;
     private final SmsService smsService;
     private final Environment environment;
+    private final com.makershub.security.FirebaseTokenVerifier firebaseTokenVerifier;
 
     // ─────────────────────────────── REGISTER ────────────────────────────────
 
@@ -320,25 +321,16 @@ public class AuthService {
 
         if ("google".equalsIgnoreCase(provider)) {
             try {
-                NetHttpTransport transport = new NetHttpTransport();
-                GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
-                String googleClientId = environment.getProperty("makershub.google.client-id");
-                
-                GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
-                        .setAudience(Collections.singletonList(googleClientId))
-                        .build();
-
-                GoogleIdToken idToken = verifier.verify(request.getIdToken());
-                if (idToken == null) {
-                    throw new BusinessException("Invalid Google token", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
+                com.google.firebase.auth.FirebaseToken decodedToken = firebaseTokenVerifier.verifyIdToken(request.getIdToken());
+                if (decodedToken == null) {
+                    throw new BusinessException("Invalid Firebase token", HttpStatus.UNAUTHORIZED, "INVALID_SOCIAL_TOKEN");
                 }
-                GoogleIdToken.Payload payload = idToken.getPayload();
-                email = payload.getEmail();
+                email = decodedToken.getEmail();
                 if (fullName == null || fullName.trim().isEmpty()) {
-                    fullName = (String) payload.get("name");
+                    fullName = decodedToken.getName();
                 }
             } catch (Exception e) {
-                throw new BusinessException("Google verification failed: " + e.getMessage(), HttpStatus.UNAUTHORIZED, "SOCIAL_AUTH_FAILED");
+                throw new BusinessException("Firebase verification failed: " + e.getMessage(), HttpStatus.UNAUTHORIZED, "SOCIAL_AUTH_FAILED");
             }
         } else if ("apple".equalsIgnoreCase(provider)) {
             try {

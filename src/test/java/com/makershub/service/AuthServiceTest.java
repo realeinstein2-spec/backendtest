@@ -43,6 +43,8 @@ class AuthServiceTest {
     private com.makershub.notification.SmsService smsService;
     @Mock
     private org.springframework.core.env.Environment environment;
+    @Mock
+    private com.makershub.security.FirebaseTokenVerifier firebaseTokenVerifier;
 
     @InjectMocks
     private AuthService authService;
@@ -110,5 +112,50 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.resendOtp(request))
                 .isInstanceOf(com.makershub.exception.ResourceNotFoundException.class);
+    }
+
+    @Test
+    void socialLogin_google_success() throws Exception {
+        AuthRequest.SocialLoginRequest request = new AuthRequest.SocialLoginRequest();
+        request.setIdToken("mock-firebase-id-token");
+        request.setRole(UserRole.SME_OWNER);
+        request.setFullName("Kofi Mensah");
+
+        com.google.firebase.auth.FirebaseToken mockDecodedToken = mock(com.google.firebase.auth.FirebaseToken.class);
+        when(mockDecodedToken.getEmail()).thenReturn("kofi@example.com");
+        when(mockDecodedToken.getName()).thenReturn("Kofi Mensah");
+
+        when(firebaseTokenVerifier.verifyIdToken("mock-firebase-id-token")).thenReturn(mockDecodedToken);
+        when(userRepository.findByEmailAndDeletedAtIsNull("kofi@example.com")).thenReturn(Optional.empty());
+
+        User savedUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("kofi@example.com")
+                .fullName("Kofi Mensah")
+                .role(UserRole.SME_OWNER)
+                .isActive(true)
+                .build();
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtUtil.generateAccessToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("access-token");
+        when(jwtUtil.generateRefreshToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("refresh-token");
+
+        AuthResponse.TokenResponse response = authService.socialLogin(request, "google");
+
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
+        verify(firebaseTokenVerifier).verifyIdToken("mock-firebase-id-token");
+    }
+
+    @Test
+    void socialLogin_google_verificationFailed_throwsException() throws Exception {
+        AuthRequest.SocialLoginRequest request = new AuthRequest.SocialLoginRequest();
+        request.setIdToken("invalid-token");
+        request.setRole(UserRole.SME_OWNER);
+
+        when(firebaseTokenVerifier.verifyIdToken("invalid-token")).thenThrow(new RuntimeException("Token expired"));
+
+        assertThatThrownBy(() -> authService.socialLogin(request, "google"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Firebase verification failed");
     }
 }
