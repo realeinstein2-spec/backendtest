@@ -120,6 +120,7 @@ class AuthServiceTest {
         request.setIdToken("mock-firebase-id-token");
         request.setRole(UserRole.SME_OWNER);
         request.setFullName("Kofi Mensah");
+        request.setPhoneNumber("+233241234567");
 
         com.google.firebase.auth.FirebaseToken mockDecodedToken = mock(com.google.firebase.auth.FirebaseToken.class);
         when(mockDecodedToken.getEmail()).thenReturn("kofi@example.com");
@@ -127,6 +128,7 @@ class AuthServiceTest {
 
         when(firebaseTokenVerifier.verifyIdToken("mock-firebase-id-token")).thenReturn(mockDecodedToken);
         when(userRepository.findByEmailAndDeletedAtIsNull("kofi@example.com")).thenReturn(Optional.empty());
+        when(userRepository.existsByPhoneNumber("+233241234567")).thenReturn(false);
 
         User savedUser = User.builder()
                 .id(UUID.randomUUID())
@@ -136,6 +138,36 @@ class AuthServiceTest {
                 .isActive(true)
                 .build();
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtUtil.generateAccessToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("access-token");
+        when(jwtUtil.generateRefreshToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("refresh-token");
+
+        AuthResponse.TokenResponse response = authService.socialLogin(request, "google");
+
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
+        verify(firebaseTokenVerifier).verifyIdToken("mock-firebase-id-token");
+    }
+
+    @Test
+    void socialLogin_google_existingUser_success() throws Exception {
+        AuthRequest.SocialLoginRequest request = new AuthRequest.SocialLoginRequest();
+        request.setIdToken("mock-firebase-id-token");
+        request.setRole(UserRole.SME_OWNER);
+
+        com.google.firebase.auth.FirebaseToken mockDecodedToken = mock(com.google.firebase.auth.FirebaseToken.class);
+        when(mockDecodedToken.getEmail()).thenReturn("kofi@example.com");
+        when(mockDecodedToken.getName()).thenReturn("Kofi Mensah");
+
+        when(firebaseTokenVerifier.verifyIdToken("mock-firebase-id-token")).thenReturn(mockDecodedToken);
+
+        User existingUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("kofi@example.com")
+                .fullName("Kofi Mensah")
+                .role(UserRole.SME_OWNER)
+                .isActive(true)
+                .build();
+        when(userRepository.findByEmailAndDeletedAtIsNull("kofi@example.com")).thenReturn(Optional.of(existingUser));
         when(jwtUtil.generateAccessToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("access-token");
         when(jwtUtil.generateRefreshToken(any(com.makershub.security.UserDetailsImpl.class))).thenReturn("refresh-token");
 
