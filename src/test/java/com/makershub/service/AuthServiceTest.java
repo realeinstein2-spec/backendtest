@@ -124,7 +124,6 @@ class AuthServiceTest {
 
         com.google.firebase.auth.FirebaseToken mockDecodedToken = mock(com.google.firebase.auth.FirebaseToken.class);
         when(mockDecodedToken.getEmail()).thenReturn("kofi@example.com");
-        when(mockDecodedToken.getName()).thenReturn("Kofi Mensah");
 
         when(firebaseTokenVerifier.verifyIdToken("mock-firebase-id-token")).thenReturn(mockDecodedToken);
         when(userRepository.findByEmailAndDeletedAtIsNull("kofi@example.com")).thenReturn(Optional.empty());
@@ -156,7 +155,6 @@ class AuthServiceTest {
 
         com.google.firebase.auth.FirebaseToken mockDecodedToken = mock(com.google.firebase.auth.FirebaseToken.class);
         when(mockDecodedToken.getEmail()).thenReturn("kofi@example.com");
-        when(mockDecodedToken.getName()).thenReturn("Kofi Mensah");
 
         when(firebaseTokenVerifier.verifyIdToken("mock-firebase-id-token")).thenReturn(mockDecodedToken);
 
