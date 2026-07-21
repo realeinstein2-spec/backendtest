@@ -1,6 +1,7 @@
 package com.makershub.service;
 
 import com.makershub.dto.request.FactoryRequest;
+import com.makershub.dto.request.UserRequest;
 import com.makershub.dto.response.AuthResponse;
 import com.makershub.entity.Factory;
 import com.makershub.entity.User;
