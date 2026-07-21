@@ -145,6 +145,26 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
+    public AuthResponse.PendingAuthResponse resendOtp(AuthRequest.ResendOtpRequest request) {
+        User user = userRepository.findByPhoneNumberAndDeletedAtIsNull(request.getPhoneNumber())
+                .orElseThrow(() -> new com.makershub.exception.ResourceNotFoundException("User", request.getPhoneNumber()));
+
+        if (!user.getIsActive()) {
+            throw new BusinessException("Account is suspended. Contact support.",
+                    HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED");
+        }
+
+        String otpCode = generateAndSaveOtp(user.getPhoneNumber(), user.getId());
+
+        String responseOtp = isDevProfile() ? otpCode : null;
+        return AuthResponse.PendingAuthResponse.builder()
+                .phoneNumber(user.getPhoneNumber())
+                .message("OTP resent successfully.")
+                .otpCode(responseOtp)
+                .build();
+    }
+
     // ───────────────────────────── VERIFY OTP ────────────────────────────────
 
     /**

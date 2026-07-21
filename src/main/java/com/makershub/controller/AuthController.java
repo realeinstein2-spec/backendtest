@@ -43,6 +43,12 @@ public class AuthController {
         return ResponseEntity.ok(authService.verifyOtp(request));
     }
 
+    @PostMapping("/resend-otp")
+    @Operation(summary = "Resend a fresh OTP verification code via SMS")
+    public ResponseEntity<AuthResponse.PendingAuthResponse> resendOtp(@Valid @RequestBody AuthRequest.ResendOtpRequest request) {
+        return ResponseEntity.ok(authService.resendOtp(request));
+    }
+
     @PostMapping("/social/{provider}")
     @Operation(summary = "Authenticate or register via Google or Apple using social idToken")
     public ResponseEntity<AuthResponse.TokenResponse> socialAuth(

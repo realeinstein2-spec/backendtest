@@ -75,4 +75,11 @@ public final class AuthRequest {
 
         private String phoneNumber;
     }
+
+    @Data
+    public static class ResendOtpRequest {
+        @NotBlank
+        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Valid phone number required")
+        private String phoneNumber;
+    }
 }

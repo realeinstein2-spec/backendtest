@@ -77,4 +77,38 @@ class AuthServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("already registered");
     }
+
+    @Test
+    void resendOtp_success() {
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .phoneNumber("+233241234567")
+                .isActive(true)
+                .build();
+
+        AuthRequest.ResendOtpRequest request = new AuthRequest.ResendOtpRequest();
+        request.setPhoneNumber("+233241234567");
+
+        when(userRepository.findByPhoneNumberAndDeletedAtIsNull("+233241234567")).thenReturn(Optional.of(user));
+        when(otpVerificationRepository.findByPhoneNumber("+233241234567")).thenReturn(Optional.empty());
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"dev"});
+
+        AuthResponse.PendingAuthResponse response = authService.resendOtp(request);
+
+        assertThat(response.getPhoneNumber()).isEqualTo("+233241234567");
+        assertThat(response.getOtpCode()).isNotNull();
+        verify(smsService).send(any());
+        verify(otpVerificationRepository).save(any());
+    }
+
+    @Test
+    void resendOtp_userNotFound_throwsException() {
+        AuthRequest.ResendOtpRequest request = new AuthRequest.ResendOtpRequest();
+        request.setPhoneNumber("+233241234567");
+
+        when(userRepository.findByPhoneNumberAndDeletedAtIsNull("+233241234567")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.resendOtp(request))
+                .isInstanceOf(com.makershub.exception.ResourceNotFoundException.class);
+    }
 }
