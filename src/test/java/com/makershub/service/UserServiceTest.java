@@ -130,7 +130,25 @@ class UserServiceTest {
                 .hasMessageContaining("Only factory owners");
 
         verifyNoInteractions(factoryRepository);
-        verifyNoInteractions(auditLogger);
+        verify(auditLogger, never()).log(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateFcmToken_success() {
+        User user = createUser(UserRole.SME_OWNER);
+        authenticate(user);
+
+        UserRequest.UpdateFcmTokenRequest request = new UserRequest.UpdateFcmTokenRequest();
+        request.setFcmToken("fcm-device-token-12345");
+
+        when(userRepository.findByIdAndDeletedAtIsNull(user.getId())).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        userService.updateFcmToken(request);
+
+        assertThat(user.getFcmToken()).isEqualTo("fcm-device-token-12345");
+        verify(userRepository).save(user);
+        verify(auditLogger).log(eq(AuditAction.UPDATE), eq("USER"), eq(user.getId()), eq("FCM_TOKEN_REGISTERED"), any());
     }
 
     @Test

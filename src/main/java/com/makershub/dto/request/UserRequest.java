@@ -1,5 +1,6 @@
 package com.makershub.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -26,5 +27,11 @@ public final class UserRequest {
 
         @Size(max = 500)
         private String coverImageUrl;
+    }
+
+    @Data
+    public static class UpdateFcmTokenRequest {
+        @NotBlank
+        private String fcmToken;
     }
 }

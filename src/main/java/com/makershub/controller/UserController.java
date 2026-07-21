@@ -43,4 +43,11 @@ public class UserController {
     public ResponseEntity<AuthResponse.UserSummaryResponse> updateProfile(@Valid @RequestBody UserRequest.UpdateProfileRequest request) {
         return ResponseEntity.ok(userService.updateProfile(request));
     }
+
+    @PutMapping("/fcm-token")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> updateFcmToken(@Valid @RequestBody UserRequest.UpdateFcmTokenRequest request) {
+        userService.updateFcmToken(request);
+        return ResponseEntity.ok().build();
+    }
 }

@@ -157,6 +157,14 @@ public class UserService {
         return toSummary(saved);
     }
 
+    @Transactional
+    public void updateFcmToken(UserRequest.UpdateFcmTokenRequest request) {
+        User user = getAuthenticatedUser();
+        user.setFcmToken(request.getFcmToken());
+        userRepository.save(user);
+        auditLogger.log(AuditAction.UPDATE, "USER", user.getId(), "FCM_TOKEN_REGISTERED", null);
+    }
+
     private User getAuthenticatedUser() {
         UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findByIdAndDeletedAtIsNull(principal.getId())
