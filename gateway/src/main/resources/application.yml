@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: makershub-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: monolith-all
+          uri: ${MONOLITH_URL:https://backendtest-production-9132.up.railway.app}
+          predicates:
+            - Path=/api/v1/**
+          filters:
+            - JwtAuthFilter
+        - id: monolith-webhooks
+          uri: ${MONOLITH_URL:https://backendtest-production-9132.up.railway.app}
+          predicates:
+            - Path=/webhooks/**
