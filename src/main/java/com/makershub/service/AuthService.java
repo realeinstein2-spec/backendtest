@@ -205,6 +205,9 @@ public class AuthService {
         // OTP valid — mark user as verified and clean up
         User user = userRepository.findByPhoneNumberAndDeletedAtIsNull(request.getPhoneNumber())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.getPhoneNumber()));
+        if (!user.getIsActive()) {
+            throw new BusinessException("Account is suspended", HttpStatus.FORBIDDEN, "ACCOUNT_SUSPENDED");
+        }
         user.setIsVerified(true);
         userRepository.save(user);
 

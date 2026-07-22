@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID userId = jwtUtil.extractUserId(jwt);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(
                         jwtUtil.parseToken(jwt).get("phone", String.class));
-                if (userDetails instanceof UserDetailsImpl impl && impl.getId().equals(userId)) {
+                if (userDetails instanceof UserDetailsImpl impl && impl.getId().equals(userId) && impl.isEnabled()) {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
