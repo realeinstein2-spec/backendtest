@@ -74,6 +74,14 @@ public class GlobalExceptionHandler {
                 .body(buildError(HttpStatus.BAD_REQUEST, "DATABASE_ERROR", "Database error: " + msg, request.getRequestURI(), null));
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse.ErrorResponse> handleMaxUploadSizeExceeded(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        log.warn("File upload size limit exceeded: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(buildError(HttpStatus.BAD_REQUEST, "FILE_TOO_LARGE", "Image file is too large", request.getRequestURI(), null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse.ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception", ex);
