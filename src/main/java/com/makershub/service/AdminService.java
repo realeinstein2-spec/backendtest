@@ -105,6 +105,25 @@ public class AdminService {
         return saved;
     }
 
+    /**
+     * Soft-deletes a user and their associated factory profile by setting deletedAt to the current timestamp.
+     */
+    @Transactional
+    public void deleteUser(UUID userId) {
+        User user = userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId.toString()));
+        java.time.Instant now = java.time.Instant.now();
+        user.setDeletedAt(now);
+        user.setIsActive(false);
+
+        if (user.getFactory() != null) {
+            user.getFactory().setDeletedAt(now);
+        }
+
+        userRepository.save(user);
+        auditLogger.log(AuditAction.DELETE, "USER", user.getId(), "ADMIN_SOFT_DELETE", null);
+    }
+
     @Transactional(readOnly = true)
     public Page<User> getActiveUsers(int activeMinutesWindow, Pageable pageable) {
         java.time.Instant threshold = java.time.Instant.now().minus(java.time.Duration.ofMinutes(activeMinutesWindow));

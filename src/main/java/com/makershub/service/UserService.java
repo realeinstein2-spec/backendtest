@@ -165,6 +165,21 @@ public class UserService {
         auditLogger.log(AuditAction.UPDATE, "USER", user.getId(), "FCM_TOKEN_REGISTERED", null);
     }
 
+    @Transactional
+    public void deleteCurrentUser() {
+        User user = getAuthenticatedUser();
+        java.time.Instant now = java.time.Instant.now();
+        user.setDeletedAt(now);
+        user.setIsActive(false);
+
+        if (user.getFactory() != null) {
+            user.getFactory().setDeletedAt(now);
+        }
+
+        userRepository.save(user);
+        auditLogger.log(AuditAction.DELETE, "USER", user.getId(), "SELF_SOFT_DELETE", null);
+    }
+
     private User getAuthenticatedUser() {
         UserDetailsImpl principal = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userRepository.findByIdAndDeletedAtIsNull(principal.getId())

@@ -93,4 +93,10 @@ public class AdminController {
                 .toList();
         return ResponseEntity.ok(mapped);
     }
+
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<ApiResponse.MessageResponse> deleteUser(@PathVariable UUID id) {
+        adminService.deleteUser(id);
+        return ResponseEntity.ok(ApiResponse.MessageResponse.builder().message("User deleted successfully").build());
+    }
 }

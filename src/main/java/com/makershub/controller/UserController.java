@@ -3,6 +3,7 @@ package com.makershub.controller;
 import com.makershub.dto.request.FactoryRequest;
 import com.makershub.dto.request.UserRequest;
 import com.makershub.dto.response.AuthResponse;
+import com.makershub.dto.response.ApiResponse;
 import com.makershub.service.UserService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -49,5 +50,12 @@ public class UserController {
     public ResponseEntity<Void> updateFcmToken(@Valid @RequestBody UserRequest.UpdateFcmTokenRequest request) {
         userService.updateFcmToken(request);
         return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse.MessageResponse> deleteCurrentUser() {
+        userService.deleteCurrentUser();
+        return ResponseEntity.ok(ApiResponse.MessageResponse.builder().message("User account deleted successfully").build());
     }
 }
