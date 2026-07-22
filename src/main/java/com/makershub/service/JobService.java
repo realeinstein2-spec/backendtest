@@ -41,6 +41,7 @@ public class JobService {
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
+    private final JobNotificationService jobNotificationService;
 
     @Transactional
     public JobResponse.JobDetailResponse createJob(JobRequest.CreateJobRequest request) {
@@ -74,7 +75,7 @@ public class JobService {
                 .build();
         JobListing saved = jobRepository.save(job);
         auditLogger.log(AuditAction.CREATE, "JOB", saved.getId(), null, null);
-        notifyMatchingFactories(saved);
+        jobNotificationService.notifyMatchingFactories(saved);
         return mapper.toJobResponse(saved);
     }
 
@@ -98,21 +99,6 @@ public class JobService {
         // Default to Kumasi coordinates if no delivery address coordinates available.
         return factoryRepository.findMatchingFactories(
                 job.getSectorTag(), job.getQuantity(), 6.6885, -1.6244, 50000.0);
-    }
-
-    // M-2: Run factory notifications asynchronously so job creation is not blocked
-    @Async
-    private void notifyMatchingFactories(JobListing job) {
-        findMatchingFactories(job).forEach(factory ->
-            notificationService.sendNotification(NotificationEvent.builder()
-                    .recipientId(factory.getUser().getId())
-                    .phoneNumber(factory.getUser().getPhoneNumber())
-                    .type(NotificationType.ORDER_STATUS_UPDATE)
-                    .title("New job match")
-                    .body("A new " + job.getSectorTag() + " job is available for bidding.")
-                    .data(Map.of("jobId", job.getId().toString()))
-                    .build())
-        );
     }
 
     @Transactional(readOnly = true)

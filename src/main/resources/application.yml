@@ -14,9 +14,9 @@ spring:
     # which Spring's JDBC driver can't parse directly (no "jdbc:" prefix, embedded creds).
     # We strip the "postgresql://" scheme and prepend "jdbc:postgresql://" instead,
     # then supply username/password separately from Railway's own vars.
-    url: jdbc:postgresql://${DATABASE_HOST:postgres-rrks.railway.internal}:${DATABASE_PORT:5432}/${DATABASE_NAME:railway}
+    url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5432}/${DATABASE_NAME:makershub}}
     username: ${DATABASE_USERNAME:postgres}
-    password: ${DATABASE_PASSWORD}
+    password: ${DATABASE_PASSWORD:postgres}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -55,6 +55,8 @@ makershub:
   notifications:
     firebase:
       enabled: ${FIREBASE_ENABLED:false}
+      credentials: ${FIREBASE_CREDENTIALS:}
+      service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:}
     africastalking:
       enabled: ${AFRICAS_TALKING_ENABLED:false}
       username: ${AFRICAS_TALKING_USERNAME:}

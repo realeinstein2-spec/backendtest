@@ -1,6 +1,8 @@
 package com.makershub.service;
 
 import com.makershub.dto.request.FactoryRequest;
+import com.makershub.dto.response.AuthResponse;
+import com.makershub.dto.response.FactoryResponse;
 import com.makershub.entity.Factory;
 import com.makershub.entity.User;
 import com.makershub.enums.AuditAction;
@@ -10,6 +12,7 @@ import com.makershub.enums.VerificationStatus;
 import com.makershub.exception.BusinessException;
 import com.makershub.exception.ResourceNotFoundException;
 import com.makershub.audit.AuditLogger;
+import com.makershub.mapper.DtoMapper;
 import com.makershub.notification.NotificationEvent;
 import com.makershub.notification.NotificationService;
 import com.makershub.repository.FactoryRepository;
@@ -31,17 +34,20 @@ public class AdminService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final AuditLogger auditLogger;
+    private final DtoMapper mapper;
 
     @Transactional(readOnly = true)
-    public Page<Factory> getVerificationQueue(VerificationStatus status, Pageable pageable) {
+    public Page<FactoryResponse.FactoryDetailResponse> getVerificationQueue(VerificationStatus status, Pageable pageable) {
         if (status != null) {
-            return factoryRepository.findByVerificationStatus(status, pageable);
+            return factoryRepository.findByVerificationStatus(status, pageable)
+                    .map(mapper::toFactoryResponse);
         }
-        return factoryRepository.findAll(pageable);
+        return factoryRepository.findAll(pageable)
+                .map(mapper::toFactoryResponse);
     }
 
     @Transactional
-    public Factory reviewFactoryVerification(UUID factoryId, FactoryRequest.VerificationReviewRequest request) {
+    public FactoryResponse.FactoryDetailResponse reviewFactoryVerification(UUID factoryId, FactoryRequest.VerificationReviewRequest request) {
         // Soft-delete-aware lookup
         Factory factory = factoryRepository.findByIdAndDeletedAtIsNull(factoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Factory", factoryId.toString()));
@@ -73,11 +79,11 @@ public class AdminService {
                 .body(body)
                 .build());
 
-        return saved;
+        return mapper.toFactoryResponse(saved);
     }
 
     @Transactional
-    public User suspendUser(UUID userId, String reason) {
+    public AuthResponse.UserSummaryResponse suspendUser(UUID userId, String reason) {
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId.toString()));
         user.setIsActive(false);
@@ -85,14 +91,14 @@ public class AdminService {
         // just not allowed to log in. Verified status is about identity, not activity.
         User saved = userRepository.save(user);
         auditLogger.log(AuditAction.ADMIN_ACTION, "USER", saved.getId(), "ACTIVE", "SUSPENDED: " + reason);
-        return saved;
+        return mapper.toUserSummary(saved);
     }
 
     /**
      * L-11: Re-activate a previously suspended user.
      */
     @Transactional
-    public User unsuspendUser(UUID userId) {
+    public AuthResponse.UserSummaryResponse unsuspendUser(UUID userId) {
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId.toString()));
         if (user.getIsActive()) {
@@ -101,7 +107,7 @@ public class AdminService {
         user.setIsActive(true);
         User saved = userRepository.save(user);
         auditLogger.log(AuditAction.ADMIN_ACTION, "USER", saved.getId(), "SUSPENDED", "ACTIVE");
-        return saved;
+        return mapper.toUserSummary(saved);
     }
 
     @Transactional(readOnly = true)

@@ -1,0 +1,35 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: makershub-notification-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/makershub}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+makershub:
+  notifications:
+    africastalking:
+      enabled: ${AFRICASTALKING_ENABLED:false}
+      username: ${AFRICASTALKING_USERNAME:sandbox}
+      api-key: ${AFRICASTALKING_API_KEY:mock-key}
+      sender-id: ${AFRICASTALKING_SENDER_ID:MakersHub}
+    firebase:
+      enabled: ${FIREBASE_ENABLED:false}
+      credentials: ${FIREBASE_CREDENTIALS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

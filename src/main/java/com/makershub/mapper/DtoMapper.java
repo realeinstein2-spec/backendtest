@@ -10,6 +10,10 @@ public interface DtoMapper {
 
     @Mapping(target = "role", source = "role")
     @Mapping(target = "otpCode", ignore = true)
+    @Mapping(target = "payoutAccountType", source = "factory.payoutAccountType")
+    @Mapping(target = "payoutAccountName", source = "factory.payoutAccountName")
+    @Mapping(target = "payoutAccountNumber", source = "factory.payoutAccountNumber")
+    @Mapping(target = "payoutBankCode", source = "factory.payoutBankCode")
     AuthResponse.UserSummaryResponse toUserSummary(User user);
 
     @Mapping(target = "smeId", source = "sme.id")
@@ -50,4 +54,11 @@ public interface DtoMapper {
     @Mapping(target = "senderId", source = "sender.id")
     @Mapping(target = "senderName", source = "sender.fullName")
     MessageResponse.MessageDetailResponse toMessageResponse(Message message);
+
+    @Mapping(target = "ownerId", source = "user.id")
+    @Mapping(target = "ownerName", source = "user.fullName")
+    @Mapping(target = "ownerPhoneNumber", source = "user.phoneNumber")
+    @Mapping(target = "latitude", expression = "java(factory.getLatitude())")
+    @Mapping(target = "longitude", expression = "java(factory.getLongitude())")
+    FactoryResponse.FactoryDetailResponse toFactoryResponse(Factory factory);
 }

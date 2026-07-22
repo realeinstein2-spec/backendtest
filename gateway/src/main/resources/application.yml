@@ -7,6 +7,72 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: order-payment-service-orders
+          uri: ${ORDER_PAYMENT_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/orders/**
+          filters:
+            - JwtAuthFilter
+        - id: order-payment-service-payments
+          uri: ${ORDER_PAYMENT_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/payments/**
+          filters:
+            - JwtAuthFilter
+        - id: order-payment-service-disputes
+          uri: ${ORDER_PAYMENT_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/disputes/**
+          filters:
+            - JwtAuthFilter
+        - id: marketplace-service-jobs
+          uri: ${MARKETPLACE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/jobs/**
+          filters:
+            - JwtAuthFilter
+        - id: marketplace-service-bids
+          uri: ${MARKETPLACE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/bids/**
+          filters:
+            - JwtAuthFilter
+        - id: marketplace-service-factories
+          uri: ${MARKETPLACE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/factories/**
+          filters:
+            - JwtAuthFilter
+        - id: marketplace-service-reviews
+          uri: ${MARKETPLACE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/reviews/**
+          filters:
+            - JwtAuthFilter
+        - id: auth-service-auth
+          uri: ${AUTH_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - JwtAuthFilter
+        - id: auth-service-users
+          uri: ${AUTH_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/users/**
+          filters:
+            - JwtAuthFilter
+        - id: notification-service-notifications
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - JwtAuthFilter
+        - id: notification-service-messages
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/messages/**
+          filters:
+            - JwtAuthFilter
         - id: monolith-all
           uri: ${MONOLITH_URL:https://backendtest-production-9132.up.railway.app}
           predicates:
@@ -17,3 +83,4 @@ spring:
           uri: ${MONOLITH_URL:https://backendtest-production-9132.up.railway.app}
           predicates:
             - Path=/webhooks/**
+

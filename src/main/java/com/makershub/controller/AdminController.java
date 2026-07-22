@@ -2,7 +2,8 @@ package com.makershub.controller;
 
 import com.makershub.dto.request.FactoryRequest;
 import com.makershub.dto.response.ApiResponse;
-import com.makershub.entity.Factory;
+import com.makershub.dto.response.AuthResponse;
+import com.makershub.dto.response.FactoryResponse;
 import com.makershub.enums.VerificationStatus;
 import com.makershub.mapper.DtoMapper;
 import com.makershub.service.AdminService;
@@ -31,26 +32,24 @@ public class AdminController {
     private final DtoMapper mapper;
 
     @GetMapping("/factories/verification-queue")
-    public ResponseEntity<Page<Factory>> getVerificationQueue(@RequestParam(required = false) VerificationStatus status,
-                                                              @PageableDefault(size = 20) Pageable pageable) {
+    public ResponseEntity<Page<FactoryResponse.FactoryDetailResponse>> getVerificationQueue(@RequestParam(required = false) VerificationStatus status,
+                                                                                              @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(adminService.getVerificationQueue(status, pageable));
     }
 
     @PatchMapping("/factories/{id}/verify")
-    public ResponseEntity<Factory> verifyFactory(@PathVariable UUID id, @Valid @RequestBody FactoryRequest.VerificationReviewRequest request) {
+    public ResponseEntity<FactoryResponse.FactoryDetailResponse> verifyFactory(@PathVariable UUID id, @Valid @RequestBody FactoryRequest.VerificationReviewRequest request) {
         return ResponseEntity.ok(adminService.reviewFactoryVerification(id, request));
     }
 
     @PostMapping("/users/{id}/suspend")
-    public ResponseEntity<?> suspendUser(@PathVariable UUID id, @RequestParam String reason) {
-        adminService.suspendUser(id, reason);
-        return ResponseEntity.ok(ApiResponse.ErrorResponse.builder().message("User suspended").build());
+    public ResponseEntity<AuthResponse.UserSummaryResponse> suspendUser(@PathVariable UUID id, @RequestParam String reason) {
+        return ResponseEntity.ok(adminService.suspendUser(id, reason));
     }
 
     @PutMapping("/users/{id}/unsuspend")
-    public ResponseEntity<?> unsuspendUser(@PathVariable UUID id) {
-        adminService.unsuspendUser(id);
-        return ResponseEntity.ok(ApiResponse.ErrorResponse.builder().message("User unsuspended").build());
+    public ResponseEntity<AuthResponse.UserSummaryResponse> unsuspendUser(@PathVariable UUID id) {
+        return ResponseEntity.ok(adminService.unsuspendUser(id));
     }
 
     @GetMapping("/users/active")
