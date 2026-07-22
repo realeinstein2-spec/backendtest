@@ -18,6 +18,15 @@ public class FactoryController {
 
     private final FactoryService factoryService;
 
+    @GetMapping
+    @Operation(summary = "Get all factories",
+               description = "Returns a paginated list of all active factory profiles in the database.")
+    public ResponseEntity<org.springframework.data.domain.Page<FactoryResponse.FactoryPublicProfileResponse>> getAllFactories(
+            @org.springframework.data.web.PageableDefault(size = 20, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC)
+            org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(factoryService.getAllFactories(pageable));
+    }
+
     @GetMapping("/{factoryId}")
     @Operation(summary = "Get factory public profile by factory ID",
                description = "Returns all public factory details including owner information, sectors, machinery, ratings, and location.")

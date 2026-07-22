@@ -149,4 +149,20 @@ class FactoryServiceTest {
         assertThatThrownBy(() -> factoryService.getFactoryProfileByUserId(unknownUserId))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    void getAllFactories_returnsPaginatedProfileList() {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<Factory> factoryPage = new org.springframework.data.domain.PageImpl<>(List.of(testFactory));
+        when(factoryRepository.findAllByDeletedAtIsNull(pageable)).thenReturn(factoryPage);
+        when(mapper.toFactoryPublicProfile(testFactory)).thenReturn(expectedResponse);
+
+        org.springframework.data.domain.Page<FactoryResponse.FactoryPublicProfileResponse> result = factoryService.getAllFactories(pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getFactoryId()).isEqualTo(factoryId);
+
+        verify(factoryRepository).findAllByDeletedAtIsNull(pageable);
+    }
 }

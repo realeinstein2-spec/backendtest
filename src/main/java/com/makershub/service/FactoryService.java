@@ -38,4 +38,13 @@ public class FactoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Factory", "User ID: " + userId));
         return mapper.toFactoryPublicProfile(factory);
     }
+
+    /**
+     * Returns a paginated list of all active factories in the database.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<FactoryResponse.FactoryPublicProfileResponse> getAllFactories(org.springframework.data.domain.Pageable pageable) {
+        return factoryRepository.findAllByDeletedAtIsNull(pageable)
+                .map(mapper::toFactoryPublicProfile);
+    }
 }
