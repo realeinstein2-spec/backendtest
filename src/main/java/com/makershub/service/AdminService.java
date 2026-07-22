@@ -34,10 +34,11 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public Page<Factory> getVerificationQueue(VerificationStatus status, Pageable pageable) {
+        Pageable safePageable = com.makershub.util.PageableUtils.sanitize(pageable);
         if (status != null) {
-            return factoryRepository.findByVerificationStatus(status, pageable);
+            return factoryRepository.findByVerificationStatus(status, safePageable);
         }
-        return factoryRepository.findAll(pageable);
+        return factoryRepository.findAll(safePageable);
     }
 
     @Transactional
@@ -107,11 +108,11 @@ public class AdminService {
     @Transactional(readOnly = true)
     public Page<User> getActiveUsers(int activeMinutesWindow, Pageable pageable) {
         java.time.Instant threshold = java.time.Instant.now().minus(java.time.Duration.ofMinutes(activeMinutesWindow));
-        return userRepository.findByLastActiveAtAfterAndDeletedAtIsNullOrderByLastActiveAtDesc(threshold, pageable);
+        return userRepository.findByLastActiveAtAfterAndDeletedAtIsNullOrderByLastActiveAtDesc(threshold, com.makershub.util.PageableUtils.sanitize(pageable));
     }
 
     @Transactional(readOnly = true)
     public Page<User> getUsersList(com.makershub.enums.UserRole role, Boolean isActive, String search, Pageable pageable) {
-        return userRepository.findAllForAdmin(role, isActive, search, pageable);
+        return userRepository.findAllForAdmin(role, isActive, search, com.makershub.util.PageableUtils.sanitize(pageable));
     }
 }
