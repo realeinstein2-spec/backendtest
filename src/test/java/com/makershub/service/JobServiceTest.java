@@ -65,6 +65,9 @@ class JobServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private JobNotificationService jobNotificationService;
+
     @InjectMocks
     private JobService jobService;
 
@@ -84,11 +87,6 @@ class JobServiceTest {
         when(userRepository.findByIdAndDeletedAtIsNull(sme.getId())).thenReturn(Optional.of(sme));
         when(jobRepository.save(any(JobListing.class))).thenReturn(job);
 
-        User factoryUser = createUser(UserRole.FACTORY_OWNER);
-        Factory factory = Factory.builder().user(factoryUser).build();
-        when(factoryRepository.findMatchingFactories(any(), any(), anyDouble(), anyDouble(), anyDouble()))
-                .thenReturn(List.of(factory));
-
         JobResponse.JobDetailResponse expectedResponse = JobResponse.JobDetailResponse.builder().build();
         when(mapper.toJobResponse(job)).thenReturn(expectedResponse);
 
@@ -97,7 +95,7 @@ class JobServiceTest {
         assertThat(response).isNotNull();
         verify(jobRepository).save(any(JobListing.class));
         verify(auditLogger).log(eq(AuditAction.CREATE), eq("JOB"), eq(job.getId()), any(), any());
-        verify(notificationService).sendNotification(any(NotificationEvent.class));
+        verify(jobNotificationService).notifyMatchingFactories(any(JobListing.class));
     }
 
     @Test
@@ -110,8 +108,6 @@ class JobServiceTest {
 
         when(userRepository.findByIdAndDeletedAtIsNull(enterprise.getId())).thenReturn(Optional.of(enterprise));
         when(jobRepository.save(any(JobListing.class))).thenReturn(job);
-        when(factoryRepository.findMatchingFactories(any(), any(), anyDouble(), anyDouble(), anyDouble()))
-                .thenReturn(List.of());
 
         JobResponse.JobDetailResponse expectedResponse = JobResponse.JobDetailResponse.builder().build();
         when(mapper.toJobResponse(job)).thenReturn(expectedResponse);
@@ -120,6 +116,7 @@ class JobServiceTest {
 
         assertThat(response).isNotNull();
         verify(jobRepository).save(any(JobListing.class));
+        verify(jobNotificationService).notifyMatchingFactories(any(JobListing.class));
     }
 
     @Test
