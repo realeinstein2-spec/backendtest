@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,8 +17,12 @@ import java.util.UUID;
 public interface ReviewRepository extends JpaRepository<Review, UUID> {
     Optional<Review> findByOrderIdAndReviewerId(UUID orderId, UUID reviewerId);
 
+    List<Review> findByOrderId(UUID orderId);
+
     @Query("SELECT AVG(r.overallRating) FROM Review r WHERE r.reviewed.id = :userId")
     Double calculateAverageRatingByReviewedId(@Param("userId") UUID userId);
+
+    long countByReviewedId(UUID reviewedId);
 
     Page<Review> findByReviewedIdOrderByCreatedAtDesc(UUID reviewedId, Pageable pageable);
 }

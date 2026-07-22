@@ -65,6 +65,10 @@ public class User {
     @Builder.Default
     private Double ratingAvg = 0.0;
 
+    @Column(name = "review_count", nullable = false)
+    @Builder.Default
+    private Integer reviewCount = 0;
+
     @Column(name = "total_orders", nullable = false)
     @Builder.Default
     private Integer totalOrders = 0;

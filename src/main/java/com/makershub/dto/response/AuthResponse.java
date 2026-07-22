@@ -58,6 +58,8 @@ public final class AuthResponse {
         private String town;
         private String profileImageUrl;
         private String coverImageUrl;
+        private Double ratingAvg;
+        private Integer reviewCount;
         private Instant lastActiveAt;
         private Instant createdAt;
         private Instant updatedAt;

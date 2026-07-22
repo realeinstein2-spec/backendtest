@@ -24,6 +24,7 @@ public final class BidResponse {
         private List<String> factorySectorTags;
         private String factoryLogoUrl;
         private Double factoryRating;
+        private Integer factoryReviewCount;
         private Double factoryLatitude;
         private Double factoryLongitude;
         private String factoryAddress;

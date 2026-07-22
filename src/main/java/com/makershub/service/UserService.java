@@ -194,6 +194,8 @@ public class UserService {
                 .town(user.getTown())
                 .profileImageUrl(user.getProfileImageUrl())
                 .coverImageUrl(user.getCoverImageUrl())
+                .ratingAvg(user.getRatingAvg())
+                .reviewCount(user.getReviewCount())
                 .lastActiveAt(user.getLastActiveAt())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

@@ -13,6 +13,7 @@ import com.makershub.exception.ResourceNotFoundException;
 import com.makershub.exception.UnauthorizedException;
 import com.makershub.audit.AuditLogger;
 import com.makershub.mapper.DtoMapper;
+import com.makershub.notification.NotificationService;
 import com.makershub.repository.OrderRepository;
 import com.makershub.repository.ReviewRepository;
 import com.makershub.repository.UserRepository;
@@ -58,6 +59,9 @@ class ReviewServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private NotificationService notificationService;
+
     @InjectMocks
     private ReviewService reviewService;
 
@@ -82,6 +86,7 @@ class ReviewServiceTest {
         Review review = Review.builder().id(UUID.randomUUID()).build();
         when(reviewRepository.save(any(Review.class))).thenReturn(review);
         when(reviewRepository.calculateAverageRatingByReviewedId(factory.getId())).thenReturn(4.5);
+        when(reviewRepository.countByReviewedId(factory.getId())).thenReturn(1L);
 
         ReviewResponse.ReviewDetailResponse expectedResponse = ReviewResponse.ReviewDetailResponse.builder().build();
         when(mapper.toReviewResponse(any(Review.class))).thenReturn(expectedResponse);
@@ -92,7 +97,9 @@ class ReviewServiceTest {
         verify(reviewRepository).save(any(Review.class));
         verify(userRepository).save(factory);
         assertThat(factory.getRatingAvg()).isEqualTo(4.5);
+        assertThat(factory.getReviewCount()).isEqualTo(1);
         verify(auditLogger).log(eq(AuditAction.CREATE), eq("REVIEW"), eq(review.getId()), any(), any());
+        verify(notificationService).sendNotification(any());
     }
 
     @Test
@@ -111,6 +118,7 @@ class ReviewServiceTest {
         Review review = Review.builder().id(UUID.randomUUID()).build();
         when(reviewRepository.save(any(Review.class))).thenReturn(review);
         when(reviewRepository.calculateAverageRatingByReviewedId(sme.getId())).thenReturn(4.8);
+        when(reviewRepository.countByReviewedId(sme.getId())).thenReturn(3L);
 
         ReviewResponse.ReviewDetailResponse expectedResponse = ReviewResponse.ReviewDetailResponse.builder().build();
         when(mapper.toReviewResponse(any(Review.class))).thenReturn(expectedResponse);
@@ -121,7 +129,9 @@ class ReviewServiceTest {
         verify(reviewRepository).save(any(Review.class));
         verify(userRepository).save(sme);
         assertThat(sme.getRatingAvg()).isEqualTo(4.8);
+        assertThat(sme.getReviewCount()).isEqualTo(3);
         verify(auditLogger).log(eq(AuditAction.CREATE), eq("REVIEW"), eq(review.getId()), any(), any());
+        verify(notificationService).sendNotification(any());
     }
 
     @Test
@@ -218,6 +228,23 @@ class ReviewServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0)).isEqualTo(responseDetail);
+    }
+
+    @Test
+    void getReviewsForOrder_returnsListOfReviews() {
+        UUID orderId = UUID.randomUUID();
+        Review review = Review.builder().id(UUID.randomUUID()).build();
+
+        when(reviewRepository.findByOrderId(orderId)).thenReturn(List.of(review));
+
+        ReviewResponse.ReviewDetailResponse responseDetail = ReviewResponse.ReviewDetailResponse.builder().build();
+        when(mapper.toReviewResponse(review)).thenReturn(responseDetail);
+
+        List<ReviewResponse.ReviewDetailResponse> result = reviewService.getReviewsForOrder(orderId);
+
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).isEqualTo(responseDetail);
     }
 
     private User createUser(UserRole role) {

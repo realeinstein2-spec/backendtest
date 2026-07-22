@@ -23,6 +23,7 @@ public interface DtoMapper {
     @Mapping(target = "factorySectorTags", source = "factory.sectorTags")
     @Mapping(target = "factoryLogoUrl", source = "factory.user.profileImageUrl")
     @Mapping(target = "factoryRating", source = "factory.user.ratingAvg")
+    @Mapping(target = "factoryReviewCount", source = "factory.user.reviewCount")
     @Mapping(target = "factoryLatitude", expression = "java(bid.getFactory().getLatitude())")
     @Mapping(target = "factoryLongitude", expression = "java(bid.getFactory().getLongitude())")
     @Mapping(target = "factoryAddress", source = "factory.address")
@@ -48,6 +49,8 @@ public interface DtoMapper {
 
     @Mapping(target = "orderId", source = "order.id")
     @Mapping(target = "reviewerId", source = "reviewer.id")
+    @Mapping(target = "reviewerName", source = "reviewer.fullName")
+    @Mapping(target = "reviewerAvatarUrl", source = "reviewer.profileImageUrl")
     @Mapping(target = "reviewedId", source = "reviewed.id")
     ReviewResponse.ReviewDetailResponse toReviewResponse(Review review);
 
@@ -79,6 +82,7 @@ public interface DtoMapper {
     @Mapping(target = "profileImageUrl", source = "user.profileImageUrl")
     @Mapping(target = "coverImageUrl", source = "user.coverImageUrl")
     @Mapping(target = "ratingAvg", source = "user.ratingAvg")
+    @Mapping(target = "reviewCount", source = "user.reviewCount")
     @Mapping(target = "totalOrders", source = "user.totalOrders")
     @Mapping(target = "memberSince", source = "user.createdAt")
     @Mapping(target = "latitude", expression = "java(factory.getLatitude())")

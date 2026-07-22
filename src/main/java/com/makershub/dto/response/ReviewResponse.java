@@ -16,6 +16,8 @@ public final class ReviewResponse {
         private UUID id;
         private UUID orderId;
         private UUID reviewerId;
+        private String reviewerName;
+        private String reviewerAvatarUrl;
         private UUID reviewedId;
         private Integer overallRating;
         private Integer qualityRating;

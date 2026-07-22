@@ -6,12 +6,15 @@ import com.makershub.entity.Order;
 import com.makershub.entity.Review;
 import com.makershub.entity.User;
 import com.makershub.enums.AuditAction;
+import com.makershub.enums.NotificationType;
 import com.makershub.enums.OrderStatus;
 import com.makershub.exception.BusinessException;
 import com.makershub.exception.ResourceNotFoundException;
 import com.makershub.exception.UnauthorizedException;
 import com.makershub.audit.AuditLogger;
 import com.makershub.mapper.DtoMapper;
+import com.makershub.notification.NotificationEvent;
+import com.makershub.notification.NotificationService;
 import com.makershub.repository.OrderRepository;
 import com.makershub.repository.ReviewRepository;
 import com.makershub.repository.UserRepository;
@@ -24,6 +27,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -35,6 +40,7 @@ public class ReviewService {
     private final UserRepository userRepository;
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
+    private final NotificationService notificationService;
 
     @Transactional
     public ReviewResponse.ReviewDetailResponse submitReview(ReviewRequest.CreateReviewRequest request) {
@@ -69,14 +75,25 @@ public class ReviewService {
         Review saved = reviewRepository.save(review);
         updateUserRating(reviewed);
         auditLogger.log(AuditAction.CREATE, "REVIEW", saved.getId(), null, null);
+
+        notificationService.sendNotification(NotificationEvent.builder()
+                .recipientId(reviewed.getId())
+                .phoneNumber(reviewed.getPhoneNumber())
+                .type(NotificationType.REVIEW_RECEIVED)
+                .title("New Review Received")
+                .body(reviewer.getFullName() + " left a " + request.getOverallRating() + "-star review for your order")
+                .data(Map.of("orderId", orderId.toString(), "reviewId", saved.getId().toString()))
+                .build());
+
         return mapper.toReviewResponse(saved);
     }
 
-    // C-11: Only update rating average here; totalOrders is incremented in OrderService when an order completes
     @Transactional
     protected void updateUserRating(User user) {
         Double avg = reviewRepository.calculateAverageRatingByReviewedId(user.getId());
-        user.setRatingAvg(avg != null ? avg : 0.0);
+        long count = reviewRepository.countByReviewedId(user.getId());
+        user.setRatingAvg(avg != null ? Math.round(avg * 10.0) / 10.0 : 0.0);
+        user.setReviewCount((int) count);
         userRepository.save(user);
     }
 
@@ -84,6 +101,13 @@ public class ReviewService {
     public Page<ReviewResponse.ReviewDetailResponse> getReviewsForUser(UUID userId, Pageable pageable) {
         return reviewRepository.findByReviewedIdOrderByCreatedAtDesc(userId, pageable)
                 .map(mapper::toReviewResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReviewResponse.ReviewDetailResponse> getReviewsForOrder(UUID orderId) {
+        return reviewRepository.findByOrderId(orderId).stream()
+                .map(mapper::toReviewResponse)
+                .toList();
     }
 
     private User getAuthenticatedUser() {

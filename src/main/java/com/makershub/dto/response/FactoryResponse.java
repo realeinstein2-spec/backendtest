@@ -76,6 +76,7 @@ public final class FactoryResponse {
         private String profileImageUrl;
         private String coverImageUrl;
         private Double ratingAvg;
+        private Integer reviewCount;
         private Integer totalOrders;
         private Instant memberSince;
     }
