@@ -84,4 +84,13 @@ public class AdminController {
                 .totalPages(mapped.getTotalPages())
                 .build());
     }
+
+    @GetMapping("/users/all")
+    public ResponseEntity<java.util.List<com.makershub.dto.response.AuthResponse.UserSummaryResponse>> getAllUsers() {
+        java.util.List<com.makershub.entity.User> users = adminService.getAllUsers();
+        java.util.List<com.makershub.dto.response.AuthResponse.UserSummaryResponse> mapped = users.stream()
+                .map(mapper::toUserSummary)
+                .toList();
+        return ResponseEntity.ok(mapped);
+    }
 }

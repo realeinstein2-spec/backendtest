@@ -115,4 +115,9 @@ public class AdminService {
     public Page<User> getUsersList(com.makershub.enums.UserRole role, Boolean isActive, String search, Pageable pageable) {
         return userRepository.findAllForAdmin(role, isActive, search, com.makershub.util.PageableUtils.sanitize(pageable));
     }
+
+    @Transactional(readOnly = true)
+    public java.util.List<User> getAllUsers() {
+        return userRepository.findAllByDeletedAtIsNullOrderByCreatedAtDesc();
+    }
 }

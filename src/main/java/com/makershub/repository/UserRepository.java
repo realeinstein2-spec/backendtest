@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 
+    java.util.List<User> findAllByDeletedAtIsNullOrderByCreatedAtDesc();
+
     boolean existsByPhoneNumber(String phoneNumber);
 
     long countByRoleAndIsVerifiedTrue(UserRole role);
