@@ -27,6 +27,19 @@ public final class BidResponse {
         private Double factoryLatitude;
         private Double factoryLongitude;
         private String factoryAddress;
+
+        // Enriched manufacturer details
+        private String factoryDescription;
+        private Integer factoryMinOrderQuantity;
+        private Integer factoryMaxOrderQuantity;
+        private Double factoryCompletionRate;
+        private Double factoryResponseTimeHours;
+        private Integer factoryTotalOrders;
+        private String factoryCoverImageUrl;
+        private String factoryRegion;
+        private String factoryTown;
+        private String factoryVerificationStatus;
+
         private BigDecimal pricePerUnitGhs;
         private BigDecimal totalPriceGhs;
         private Integer productionDays;
