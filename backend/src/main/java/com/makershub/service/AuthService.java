@@ -13,6 +13,8 @@ import com.makershub.notification.NotificationEvent;
 import com.makershub.notification.SmsService;
 import com.makershub.repository.OtpVerificationRepository;
 import com.makershub.repository.UserRepository;
+import com.makershub.repository.RefreshTokenRepository;
+import com.makershub.entity.RefreshToken;
 import com.makershub.security.JwtUtil;
 import com.makershub.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class AuthService {
     private final SmsService smsService;
     private final Environment environment;
     private final com.makershub.security.FirebaseTokenVerifier firebaseTokenVerifier;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     // ─────────────────────────────── REGISTER ────────────────────────────────
 
@@ -225,6 +228,16 @@ public class AuthService {
         if (!jwtUtil.isTokenValid(request.getRefreshToken(), "REFRESH")) {
             throw new BusinessException("Invalid refresh token", HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN");
         }
+
+        // Option A: Verify the refresh token is in the database whitelist and hasn't expired
+        RefreshToken existingToken = refreshTokenRepository.findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new BusinessException("Invalid or logged out refresh token", HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN"));
+
+        if (existingToken.getExpiryTime().isBefore(java.time.Instant.now())) {
+            refreshTokenRepository.delete(existingToken);
+            throw new BusinessException("Refresh token has expired", HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED");
+        }
+
         UUID userId = jwtUtil.extractUserId(request.getRefreshToken());
         User user = userRepository.findByIdAndDeletedAtIsNull(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId.toString()));
@@ -236,7 +249,18 @@ public class AuthService {
         if (!user.getIsVerified()) {
             throw new BusinessException("Account is not verified", HttpStatus.FORBIDDEN, "ACCOUNT_NOT_VERIFIED");
         }
+
+        // RTR: Delete the old refresh token before generating a new response
+        refreshTokenRepository.delete(existingToken);
+
         return buildTokenResponse(new UserDetailsImpl(user), user);
+    }
+
+    @Transactional
+    public void logout(AuthRequest.RefreshRequest request) {
+        if (request.getRefreshToken() != null) {
+            refreshTokenRepository.deleteByToken(request.getRefreshToken());
+        }
     }
 
     // ─────────────────────────────── HELPERS ─────────────────────────────────
@@ -272,11 +296,24 @@ public class AuthService {
     private AuthResponse.TokenResponse buildTokenResponse(UserDetailsImpl userDetails, User user) {
         AuthResponse.UserSummaryResponse userSummary = mapToSummary(user, null);
 
+        String accessToken = jwtUtil.generateAccessToken(userDetails);
+        String refreshTokenString = jwtUtil.generateRefreshToken(userDetails);
+        java.time.Instant accessExpiry = jwtUtil.getAccessExpiry();
+        java.time.Instant refreshExpiry = jwtUtil.getRefreshExpiry();
+
+        // Option A: Save the new refresh token to the database whitelist
+        RefreshToken refreshTokenEntity = RefreshToken.builder()
+                .token(refreshTokenString)
+                .user(user)
+                .expiryTime(refreshExpiry)
+                .build();
+        refreshTokenRepository.save(refreshTokenEntity);
+
         return AuthResponse.TokenResponse.builder()
-                .accessToken(jwtUtil.generateAccessToken(userDetails))
-                .refreshToken(jwtUtil.generateRefreshToken(userDetails))
-                .accessTokenExpiry(jwtUtil.getAccessExpiry())
-                .refreshTokenExpiry(jwtUtil.getRefreshExpiry())
+                .accessToken(accessToken)
+                .refreshToken(refreshTokenString)
+                .accessTokenExpiry(accessExpiry)
+                .refreshTokenExpiry(refreshExpiry)
                 .tokenType("Bearer")
                 .user(userSummary)
                 .build();

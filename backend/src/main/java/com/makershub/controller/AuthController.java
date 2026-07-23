@@ -37,6 +37,13 @@ public class AuthController {
         return ResponseEntity.ok(authService.refresh(request));
     }
 
+    @PostMapping("/logout")
+    @Operation(summary = "Invalidate user session on backend by blacklisting/deleting the refresh token")
+    public ResponseEntity<Void> logout(@Valid @RequestBody AuthRequest.RefreshRequest request) {
+        authService.logout(request);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/verify")
     @Operation(summary = "Verify OTP and receive JWT tokens")
     public ResponseEntity<AuthResponse.TokenResponse> verify(@Valid @RequestBody AuthRequest.OtpRequest request) {

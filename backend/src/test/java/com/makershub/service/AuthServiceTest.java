@@ -7,6 +7,8 @@ import com.makershub.enums.UserRole;
 import com.makershub.exception.BusinessException;
 import com.makershub.audit.AuditLogger;
 import com.makershub.repository.UserRepository;
+import com.makershub.repository.RefreshTokenRepository;
+import com.makershub.entity.RefreshToken;
 import com.makershub.security.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import java.time.Instant;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +48,8 @@ class AuthServiceTest {
     private org.springframework.core.env.Environment environment;
     @Mock
     private com.makershub.security.FirebaseTokenVerifier firebaseTokenVerifier;
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
 
     @InjectMocks
     private AuthService authService;
@@ -187,5 +192,84 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.socialLogin(request, "google"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Firebase verification failed");
+    }
+
+    @Test
+    void refresh_success_withWhitelistAndRotation() {
+        AuthRequest.RefreshRequest request = new AuthRequest.RefreshRequest();
+        request.setRefreshToken("valid-refresh-token");
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .phoneNumber("+233241234567")
+                .role(UserRole.SME_OWNER)
+                .isActive(true)
+                .isVerified(true)
+                .build();
+
+        RefreshToken dbToken = RefreshToken.builder()
+                .token("valid-refresh-token")
+                .user(user)
+                .expiryTime(Instant.now().plusSeconds(3600))
+                .build();
+
+        when(jwtUtil.isTokenValid("valid-refresh-token", "REFRESH")).thenReturn(true);
+        when(refreshTokenRepository.findByToken("valid-refresh-token")).thenReturn(Optional.of(dbToken));
+        when(jwtUtil.extractUserId("valid-refresh-token")).thenReturn(user.getId());
+        when(userRepository.findByIdAndDeletedAtIsNull(user.getId())).thenReturn(Optional.of(user));
+
+        when(jwtUtil.generateAccessToken(any())).thenReturn("new-access-token");
+        when(jwtUtil.generateRefreshToken(any())).thenReturn("new-refresh-token");
+        when(jwtUtil.getAccessExpiry()).thenReturn(Instant.now().plusSeconds(1800));
+        when(jwtUtil.getRefreshExpiry()).thenReturn(Instant.now().plusSeconds(3600));
+
+        AuthResponse.TokenResponse response = authService.refresh(request);
+
+        assertThat(response.getAccessToken()).isEqualTo("new-access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("new-refresh-token");
+        verify(refreshTokenRepository).delete(dbToken);
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refresh_fails_whenTokenNotInWhitelist() {
+        AuthRequest.RefreshRequest request = new AuthRequest.RefreshRequest();
+        request.setRefreshToken("unknown-refresh-token");
+
+        when(jwtUtil.isTokenValid("unknown-refresh-token", "REFRESH")).thenReturn(true);
+        when(refreshTokenRepository.findByToken("unknown-refresh-token")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Invalid or logged out refresh token");
+    }
+
+    @Test
+    void refresh_fails_whenTokenExpiredInDb() {
+        AuthRequest.RefreshRequest request = new AuthRequest.RefreshRequest();
+        request.setRefreshToken("expired-refresh-token");
+
+        RefreshToken dbToken = RefreshToken.builder()
+                .token("expired-refresh-token")
+                .expiryTime(Instant.now().minusSeconds(10))
+                .build();
+
+        when(jwtUtil.isTokenValid("expired-refresh-token", "REFRESH")).thenReturn(true);
+        when(refreshTokenRepository.findByToken("expired-refresh-token")).thenReturn(Optional.of(dbToken));
+
+        assertThatThrownBy(() -> authService.refresh(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Refresh token has expired");
+        verify(refreshTokenRepository).delete(dbToken);
+    }
+
+    @Test
+    void logout_deletesToken() {
+        AuthRequest.RefreshRequest request = new AuthRequest.RefreshRequest();
+        request.setRefreshToken("some-refresh-token");
+
+        authService.logout(request);
+
+        verify(refreshTokenRepository).deleteByToken("some-refresh-token");
     }
 }

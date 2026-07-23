@@ -51,11 +51,4 @@ public class UserController {
         userService.updateFcmToken(request);
         return ResponseEntity.ok().build();
     }
-
-    @DeleteMapping("/me")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse.MessageResponse> deleteCurrentUser() {
-        userService.deleteCurrentUser();
-        return ResponseEntity.ok(ApiResponse.MessageResponse.builder().message("User account deleted successfully").build());
-    }
 }
