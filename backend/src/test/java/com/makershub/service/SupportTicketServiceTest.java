@@ -186,6 +186,22 @@ class SupportTicketServiceTest {
     }
 
     @Test
+    void addMessage_throwsBusinessException_whenTicketClosedOrResolved() {
+        authenticate(testUser);
+        testTicket.setStatus(SupportTicketStatus.CLOSED);
+
+        SupportTicketRequest.AddMessageRequest request = new SupportTicketRequest.AddMessageRequest();
+        request.setMessage("Trying to reply to closed ticket");
+
+        when(userRepository.findByIdAndDeletedAtIsNull(testUser.getId())).thenReturn(Optional.of(testUser));
+        when(supportTicketRepository.findByIdAndDeletedAtIsNull(testTicket.getId())).thenReturn(Optional.of(testTicket));
+
+        assertThatThrownBy(() -> supportTicketService.addMessage(testTicket.getId(), request))
+                .isInstanceOf(com.makershub.exception.BusinessException.class)
+                .hasMessageContaining("Cannot add a message to a resolved or closed ticket");
+    }
+
+    @Test
     void adminUpdateTicketStatus_success() {
         authenticate(adminUser);
 

@@ -289,4 +289,29 @@ class PaymentServiceTest {
         verify(orderRepository, never()).save(any(Order.class));
         verify(escrowRepository, never()).save(any(EscrowTransaction.class));
     }
+
+    // 11. Webhook for cancelled order skips escrow update (BUG-02 fix)
+    @Test
+    void markChargeSuccessful_skipsEscrow_whenOrderCancelled() throws Exception {
+        testOrder.setStatus(OrderStatus.CANCELLED);
+        PaymentTransaction tx = PaymentTransaction.builder()
+                .reference("mh_cancelled_ref")
+                .orderId(testOrder.getId())
+                .customerId(testUser.getId())
+                .amountPesewas(10000L)
+                .currency("GHS")
+                .status("PENDING")
+                .build();
+        when(paymentTransactionRepository.findByReferenceForUpdate("mh_cancelled_ref")).thenReturn(Optional.of(tx));
+        when(orderRepository.findById(testOrder.getId())).thenReturn(Optional.of(testOrder));
+
+        String payload = "{\"id\":\"123\",\"reference\":\"mh_cancelled_ref\",\"amount\":10000,\"currency\":\"GHS\",\"channel\":\"card\"}";
+        JsonNode dataNode = realMapper.readTree(payload);
+
+        paymentService.markChargeSuccessful(tx, dataNode);
+
+        // Verify status remains CANCELLED and no escrow record created
+        assertEquals(OrderStatus.CANCELLED, testOrder.getStatus());
+        verify(escrowRepository, never()).save(any(EscrowTransaction.class));
+    }
 }

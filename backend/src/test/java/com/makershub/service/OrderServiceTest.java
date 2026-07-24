@@ -88,6 +88,41 @@ class OrderServiceTest {
                 .hasMessageContaining("Quality check window has expired");
     }
 
+    @Test
+    void updateStatus_rejectsFactoryAttemptingToCancelOrder() {
+        User factoryUser = user();
+        authenticate(factoryUser);
+        Order order = order(factoryUser, OrderStatus.PAYMENT_PENDING);
+        order.setFactory(factoryUser);
+        when(orderRepository.findByIdAndDeletedAtIsNull(order.getId())).thenReturn(Optional.of(order));
+        when(userRepository.findByIdAndDeletedAtIsNull(factoryUser.getId())).thenReturn(Optional.of(factoryUser));
+
+        OrderRequest.StatusUpdateRequest request = new OrderRequest.StatusUpdateRequest();
+        request.setNewStatus(OrderStatus.CANCELLED);
+
+        assertThatThrownBy(() -> orderService.updateStatus(order.getId(), request))
+                .isInstanceOf(com.makershub.exception.UnauthorizedException.class)
+                .hasMessageContaining("Factories cannot cancel orders");
+    }
+
+    @Test
+    void confirmDelivery_opensDisputeWhenQualityAcceptedIsNull() {
+        User sme = user();
+        authenticate(sme);
+        Order order = order(sme, OrderStatus.DELIVERED);
+        when(orderRepository.findByIdAndDeletedAtIsNull(order.getId())).thenReturn(Optional.of(order));
+        when(userRepository.findByIdAndDeletedAtIsNull(sme.getId())).thenReturn(Optional.of(sme));
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderRequest.ConfirmDeliveryRequest request = new OrderRequest.ConfirmDeliveryRequest();
+        request.setQualityAccepted(null);
+        request.setComment("Quality issue");
+
+        orderService.confirmDelivery(order.getId(), request);
+
+        org.assertj.core.api.Assertions.assertThat(order.getStatus()).isEqualTo(OrderStatus.DISPUTED);
+    }
+
     private User user() {
         return User.builder()
                 .id(UUID.randomUUID())
