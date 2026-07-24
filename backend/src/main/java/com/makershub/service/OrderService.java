@@ -61,6 +61,8 @@ public class OrderService {
     private final DtoMapper mapper;
     private final AuditLogger auditLogger;
     private final NotificationService notificationService;
+    // BUG-01 fix: delegate per-order completion to helper with REQUIRES_NEW
+    private final OrderAutoCompleteHelper orderAutoCompleteHelper;
 
     @Transactional
     public OrderResponse.OrderDetailResponse acceptBid(UUID bidId) {
@@ -116,6 +118,10 @@ public class OrderService {
         if (!order.getFactory().getId().equals(factoryUser.getId())) {
             throw new UnauthorizedException("Only the assigned factory can update this order");
         }
+        // BUG-03 fix: factories must not be able to cancel orders — only SMEs can via cancelOrder()
+        if (request.getNewStatus() == OrderStatus.CANCELLED) {
+            throw new UnauthorizedException("Factories cannot cancel orders. Only the SME can cancel.");
+        }
         validateTransition(order.getStatus(), request.getNewStatus());
         // M-1: Capture old status before mutation so audit log is accurate
         OrderStatus oldStatus = order.getStatus();
@@ -148,7 +154,8 @@ public class OrderService {
         if (order.getQualityCheckDeadline() != null && order.getQualityCheckDeadline().isBefore(java.time.Instant.now())) {
             throw new BusinessException("Quality check window has expired", HttpStatus.CONFLICT, "QUALITY_WINDOW_EXPIRED");
         }
-        if (Boolean.FALSE.equals(request.getQualityAccepted())) {
+        // BUG-08 fix: null qualityAccepted must NOT silently approve — treat as rejection/dispute
+        if (!Boolean.TRUE.equals(request.getQualityAccepted())) {
             return openDispute(order, sme, request.getComment());
         }
         order.setStatus(OrderStatus.COMPLETED);
@@ -254,21 +261,15 @@ public class OrderService {
                 .build());
     }
 
-    // M-20: Each order is auto-completed independently; errors are caught per-order to avoid blocking the batch
-    @Transactional
+    // BUG-01 fix: not @Transactional here — each order runs in its own REQUIRES_NEW transaction
+    // via OrderAutoCompleteHelper so a single failure does not roll back the entire batch.
     public void autoCompleteExpiredOrders() {
-        java.time.Instant now = java.time.Instant.now();
         java.util.List<Order> expired = orderRepository.findByStatusAndQualityCheckDeadlineBeforeAndDeletedAtIsNull(
-                OrderStatus.DELIVERED, now);
+                OrderStatus.DELIVERED, java.time.Instant.now());
+        log.info("Auto-completing {} expired delivered orders.", expired.size());
         for (Order order : expired) {
             try {
-                order.setStatus(OrderStatus.COMPLETED);
-                order.setCompletedAt(now);
-                Order saved = orderRepository.save(order);
-                releaseEscrow(saved);
-                auditLogger.log(AuditAction.UPDATE, "ORDER", saved.getId(), OrderStatus.DELIVERED.name(), OrderStatus.COMPLETED.name());
-                notify(saved, NotificationType.ORDER_STATUS_UPDATE, "Order completed automatically",
-                        "Quality check window expired. Escrow released.");
+                orderAutoCompleteHelper.autoCompleteSingleOrder(order);
             } catch (Exception e) {
                 log.error("Failed to auto-complete order {}: {}", order.getId(), e.getMessage(), e);
             }

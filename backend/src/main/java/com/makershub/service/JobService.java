@@ -95,9 +95,23 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<Factory> findMatchingFactories(JobListing job) {
-        // Default to Kumasi coordinates if no delivery address coordinates available.
+        double lat = 6.6885;
+        double lon = -1.6244;
+        String addr = job.getDeliveryAddress();
+        if (addr != null && !addr.isBlank()) {
+            String lower = addr.toLowerCase();
+            if (lower.contains("accra")) {
+                lat = 5.6037; lon = -0.1870;
+            } else if (lower.contains("takoradi") || lower.contains("sekondi")) {
+                lat = 4.9016; lon = -1.7831;
+            } else if (lower.contains("tamale")) {
+                lat = 9.4008; lon = -0.8393;
+            } else if (lower.contains("tema")) {
+                lat = 5.6698; lon = -0.0166;
+            }
+        }
         return factoryRepository.findMatchingFactories(
-                job.getSectorTag(), job.getQuantity(), 6.6885, -1.6244, 50000.0);
+                job.getSectorTag(), job.getQuantity(), lat, lon, 50000.0);
     }
 
     // M-2: Run factory notifications asynchronously so job creation is not blocked

@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -27,6 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final com.makershub.repository.UserRepository userRepository;
 
+    // BUG-05 fix: Bounded cache to prevent memory leaks, auto-cleared if exceeding 10,000 entries
     private final java.util.Map<UUID, Long> lastActiveCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
@@ -55,6 +57,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void updateLastActiveOptimized(UUID userId) {
         long now = System.currentTimeMillis();
+        if (lastActiveCache.size() > 10_000) {
+            lastActiveCache.clear(); // Safety cap against memory leak
+        }
         Long lastUpdated = lastActiveCache.get(userId);
         if (lastUpdated == null || (now - lastUpdated) > 60_000) { // 1 minute interval
             lastActiveCache.put(userId, now);

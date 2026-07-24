@@ -84,9 +84,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse.ErrorResponse> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
         log.warn("Database integrity violation: {}", ex.getMessage());
-        String msg = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
-        return ResponseEntity.badRequest()
-                .body(buildError(HttpStatus.BAD_REQUEST, "DATABASE_ERROR", "Database error: " + msg, request.getRequestURI(), null));
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(buildError(HttpStatus.CONFLICT, "DUPLICATE_OR_INVALID_DATA",
+                        "The operation could not be completed due to a data constraint conflict.", request.getRequestURI(), null));
     }
 
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)

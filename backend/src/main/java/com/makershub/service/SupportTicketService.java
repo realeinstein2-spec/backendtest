@@ -135,6 +135,12 @@ public class SupportTicketService {
             throw new UnauthorizedException("You do not have permission to reply to this support ticket");
         }
 
+        // BUG-07 fix: Prevent adding messages to resolved/closed tickets
+        if (ticket.getStatus() == SupportTicketStatus.CLOSED || ticket.getStatus() == SupportTicketStatus.RESOLVED) {
+            throw new BusinessException("Cannot add a message to a resolved or closed ticket",
+                    org.springframework.http.HttpStatus.CONFLICT, "TICKET_CLOSED");
+        }
+
         SupportMessage message = SupportMessage.builder()
                 .ticket(ticket)
                 .sender(currentUser)

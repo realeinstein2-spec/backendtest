@@ -209,6 +209,15 @@ public class PaymentService {
 
         Order order = orderRepository.findById(locked.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order", locked.getOrderId().toString()));
+
+        // BUG-02 fix: if the order was already cancelled (or in an unexpected state), do not overwrite it.
+        // This guards against race conditions where a webhook arrives after an SME cancels the order.
+        if (order.getStatus() != OrderStatus.PAYMENT_PENDING) {
+            log.error("Webhook received for order {} but current status is {} (expected PAYMENT_PENDING). Skipping escrow creation.",
+                    order.getId(), order.getStatus());
+            return;
+        }
+
         order.setStatus(OrderStatus.IN_ESCROW);
         orderRepository.save(order);
 

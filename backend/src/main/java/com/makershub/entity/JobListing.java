@@ -66,6 +66,10 @@ public class JobListing {
     @Column(name = "attachment_url", length = 500)
     private List<String> attachmentUrls;
 
+    public List<String> getProductImageUrls() {
+        return attachmentUrls;
+    }
+
     @Column(name = "delivery_address", length = 500)
     private String deliveryAddress;
 

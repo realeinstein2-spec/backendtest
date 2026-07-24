@@ -62,7 +62,6 @@ public class SecurityConfig {
                 .httpStrictTransportSecurity(hsts -> hsts
                     .includeSubDomains(true)
                     .maxAgeInSeconds(31536000))
-                .contentTypeOptions(HeadersConfigurer.ContentTypeOptionsConfig::disable)
                 .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
             )
             .authorizeHttpRequests(auth -> {

@@ -28,8 +28,16 @@ public class PaymentTransaction {
     @Column(nullable = false, unique = true, length = 100)
     private String reference;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false, insertable = false, updatable = false)
+    private Order order;
+
     @Column(name = "order_id", nullable = false)
     private UUID orderId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", nullable = false, insertable = false, updatable = false)
+    private User customer;
 
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;

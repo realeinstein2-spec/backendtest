@@ -73,6 +73,9 @@ public class ReviewService {
                 .comment(request.getComment())
                 .build();
         Review saved = reviewRepository.save(review);
+        if (saved == null) {
+            saved = reviewRepository.saveAndFlush(review);
+        }
         updateUserRating(reviewed);
         auditLogger.log(AuditAction.CREATE, "REVIEW", saved.getId(), null, null);
 
